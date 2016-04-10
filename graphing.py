@@ -5,17 +5,28 @@ from mpl_toolkits.axes_grid1 import host_subplot
 import mpl_toolkits.axisartist
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import pandas as pd
+import base64
+import calendar
+from io import BytesIO
 from os import makedirs
 
-mpl.style.use('seaborn-bright')#'fivethirtyeight')
-mpl.rcParams['figure.figsize'] = (17, 5)
-mpl.rcParams['lines.linewidth'] = 2
+'''
+    Statics
+'''
+# Tableau20 colour scheme
+def graph():
+    pass
+graph.colors = ["#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728",
+                "#ff9896", "#9467bd", "#c5b0d5", "#8c564b", "#c49c94", "#e377c2", "#f7b6d2",
+                "#7f7f7f", "#c7c7c7", "#bcbd22", "#dbdb8d", "#17becf", "#9edae5"]
+
 
 
 '''
     Plot a graph. Variable number of axes, linked (or not). Lots of lovely options.
 '''
-def graph(x_data, y_data, *args, **kwargs):
+def multiaxis_graph(x_data, y_data, *args, **kwargs):
 
     # Pop arguments
     title = kwargs.pop('title', None)            # string
@@ -29,7 +40,7 @@ def graph(x_data, y_data, *args, **kwargs):
     legend = kwargs.pop('legend', None)          # boolean
     twin_x = kwargs.pop('twin_x', None)          # boolean
     twin_y = kwargs.pop('twin_y', None)          # boolean
-    savefig = kwargs.pop('savefig', None)        # boolean
+    savefig = kwargs.pop('savefig', None)        # boolean or str (processed as filename)
     savedir = kwargs.pop('savedir', '.')         # str
 
     ## Closures
@@ -43,6 +54,7 @@ def graph(x_data, y_data, *args, **kwargs):
         return (offset.multiplier * (i//2)) * ((i%2) + (((i+1)%2))*-1)
     offset.multiplier = 60
 
+    plt.figure()
     host = host_subplot(111, axes_class=mpl_toolkits.axisartist.Axes)
     host.axis["top"].toggle(all=False)
 
@@ -69,14 +81,16 @@ def graph(x_data, y_data, *args, **kwargs):
                           y_data[i]*20, 
                           label=label, 
                           color=colors[i%len(colors)], 
-                          zorder=-1, lw=5)
+                          zorder=-1, lw=5,
+                          **kwargs)
 
             ax.set_ylim(0,1)
             ax.axis[orient(i)].toggle(all=False)
 
         else:
             p, = ax.plot(x_data[i] if type(x_data) is list else x_data, 
-                         y_data[i], label=label, color=colors[i%len(colors)])
+                         y_data[i], label=label, color=colors[i%len(colors)], 
+                         **kwargs)
 
             for t in ax.get_yticklabels():             # This doesn't work and I don't know why.
                 t.set_color(colors[i%len(colors)])     #p.get_color())
@@ -99,7 +113,7 @@ def graph(x_data, y_data, *args, **kwargs):
 
     if title:
         t = plt.suptitle(title)
-        t.set_fontsize(t.get_fontsize()+8)
+        #t.set_fontsize(t.get_fontsize()+8)
 
     if x_label:
         host.set_xlabel(x_label)
@@ -111,17 +125,111 @@ def graph(x_data, y_data, *args, **kwargs):
         plt.legend()
 
     plt.draw()
-    plt.show()
 
     if savefig:
-        makedirs(savedir, exist_ok=True)
-        plt.savefig("{0}/{1}.png".format(savedir, title))
+        handle=None
+        if type(savefig) is str: 
+            makedirs(savedir, exist_ok=True)
+            handle = "{0}/{1}".format(savedir, title if (type(savefig) is bool) else savefig)
+        else:
+            handle = BytesIO()
 
-# Statics
-# Tableau20 colour scheme
-graph.colors = ["#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728", 
-                 "#ff9896", "#9467bd", "#c5b0d5", "#8c564b", "#c49c94", "#e377c2", "#f7b6d2", 
-                 "#7f7f7f", "#c7c7c7", "#bcbd22", "#dbdb8d", "#17becf", "#9edae5"]
+        plt.savefig(
+            handle,
+            format='svg',
+            transparent=True,
+            #bbox_inches='tight',
+            pad_inches=0)
+
+        handle.seek(0)
+        return base64.b64encode(handle.getvalue()).decode('utf-8').replace('\n', '')
+    else:
+        plt.show()
+
+
+
+'''
+    Plot a series as weekly views using subplots
+'''
+def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
+
+    rows=4
+    cols=2
+    colors = kwargs.pop('colors', graph.colors)
+
+    # Eight subplots, returned as a 2-d array
+    fig, axarr = plt.subplots(rows, cols, sharey=True)
+    fig.subplots_adjust(hspace=0, wspace=0)
+    fig.autofmt_xdate()
+
+    from matplotlib.ticker import MaxNLocator
+    plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
+
+    i=1
+    for day in pd.date_range(t_start, t_end, freq='D', normalize=True):
+        start, end = (day, (day + pd.Timedelta('1 day')))
+        row, col = (i//cols, i%cols)
+
+        # Pandas Data
+        x_data = [ dfs[i].loc[start:end,].index for i in dfs ]
+        y_data = [ dfs[i].loc[start:end, series].values for i in dfs ]
+        
+        # Ignore days with one value (e.g. fetch interface returns 23:59:58 from the previous day)
+        if sum( [len(x) for x in x_data] ) <= len( x_data ):
+            continue
+        
+        for j in range(0, len(y_data)):
+            axarr[row, col].plot(x_data[j], y_data[j], color=colors[j%len(colors)])
+            
+        axarr[row, col].set_title(
+            #'Axis [{0},{1}]'.format(row, col), 
+            "{0} {1}".format(calendar.day_abbr[start.dayofweek], start.date().strftime('%d %b')),
+            loc='left', x=0.05, y=0.80)
+        
+        axarr[row, col].grid(alpha=0.25)
+        i+=1
+
+    # Fine-tune figure
+    # Set labels on left column plots y-axis
+    for row in range(0,(rows)):
+        axarr[row, 0].set_ylabel(y_label)
+        
+        for col in range(0,(cols)):
+            axarr[row, col].tick_params(
+                axis='both',       # changes apply to both axis
+                which='both',      # both major and minor ticks are affected
+                bottom='off',      # ticks along the bottom edge are off
+                top='off',         # ticks along the top edge are off
+                left='off',
+                right='off',
+                labelbottom='on')  # labels along the bottom edge are on
+
+    # Plot a legend inside the upper leftmost figure
+    leg = plt.figlegend(
+        handles=axarr[0, 1].lines, 
+        labels=list(dfs.keys()), 
+        loc='upper left', 
+        bbox_to_anchor = (0.13,-0.1,1,1),
+        bbox_transform = plt.gcf().transFigure,
+        ncol=3, 
+        labelspacing=0.5,
+        columnspacing=0.25,
+        markerscale=2,
+        frameon=False)
+    plt.setp(leg.get_lines(), linewidth=1.5)      # the legend linewidth
+
+    # Output to buffer using savefig
+    output = BytesIO()
+    plt.savefig(
+        output,
+        format='svg',
+        transparent=True,
+        bbox_inches='tight',
+        pad_inches=0)
+
+    output.seek(0)
+    return base64.b64encode(output.getvalue()).decode('utf-8').replace('\n', '')
+
 
 
 '''
@@ -134,10 +242,10 @@ def test():
     graph(np.array(range(0,n)),
         [ np.sort(np.random.normal(0, 0.2, size=n)),
           np.sort(np.random.power(0.1, size=n)),
-          np.sort(np.random.random(size=n)) ], 
-        x_label="n", 
+          np.sort(np.random.random(size=n)) ],
+        x_label="n",
         title="Graph test with Matplotlib (probabilities)",
-        y_series=["Normal", "Power", "Random"], 
+        y_series=["Normal", "Power", "Random"],
         twin_x=True, legend=True)
 
 
