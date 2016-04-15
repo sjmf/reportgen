@@ -8,8 +8,11 @@ import matplotlib as mpl
 import pandas as pd
 import base64
 import calendar
+import logging
 from io import BytesIO
 from os import makedirs
+
+log = logging.getLogger('graphing.py')
 
 '''
     Statics
@@ -153,6 +156,10 @@ def multiaxis_graph(x_data, y_data, *args, **kwargs):
 '''
 def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
 
+    # Argument sanity check
+    if t_end - t_start > pd.Timedelta('6 days'):
+        raise ValueError( "Date range passed is > 1 week: {0} to {1}".format(t_start, t_end) )
+
     rows=4
     cols=2
     colors = kwargs.pop('colors', graph.colors)
@@ -165,35 +172,47 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
     from matplotlib.ticker import MaxNLocator
     plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
 
+    log.info( "{0: <8} - {1} to {2}".format(series, str(t_start), str(t_end)) )
+
     i=1
     for day in pd.date_range(t_start, t_end, freq='D', normalize=True):
         start, end = (day, (day + pd.Timedelta('1 day')))
         row, col = (i//cols, i%cols)
+        ax = axarr[row, col]
 
         # Pandas Data
         x_data = [ dfs[i].loc[start:end,].index for i in dfs ]
         y_data = [ dfs[i].loc[start:end, series].values for i in dfs ]
-        
+
         # Ignore days with one value (e.g. fetch interface returns 23:59:58 from the previous day)
-        if sum( [len(x) for x in x_data] ) <= len( x_data ):
-            continue
-        
+#        if sum( [len(x) for x in x_data] ) <= len( x_data ):
+#            log.debug("Skipping {0} as not enough data".format(t_start))
+#            continue
+
+        log.debug( "Graphing {0} in cell {1} @{2},{3}".format(t_start, i, row, col) )
+
         for j in range(0, len(y_data)):
-            axarr[row, col].plot(x_data[j], y_data[j], color=colors[j%len(colors)])
-            
-        axarr[row, col].set_title(
+            log.debug(str(j) +','+ str(len(x_data)) +','+ str(len(y_data))+','+ str(row)+','+ str(col))
+            ax.plot(x_data[j], y_data[j], color=colors[j%len(colors)])
+
+        # Force 24h graph time period
+        ax.set_xlim(start, end)
+
+        ax.set_title(
             #'Axis [{0},{1}]'.format(row, col), 
             "{0} {1}".format(calendar.day_abbr[start.dayofweek], start.date().strftime('%d %b')),
             loc='left', x=0.05, y=0.80)
-        
-        axarr[row, col].grid(alpha=0.25)
+
+        ax.grid(alpha=0.25)
+
+        #ax.text(3, 2, 'hiya')
         i+=1
 
     # Fine-tune figure
     # Set labels on left column plots y-axis
     for row in range(0,(rows)):
         axarr[row, 0].set_ylabel(y_label)
-        
+
         for col in range(0,(cols)):
             axarr[row, col].tick_params(
                 axis='both',       # changes apply to both axis
@@ -206,12 +225,12 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
 
     # Plot a legend inside the upper leftmost figure
     leg = plt.figlegend(
-        handles=axarr[0, 1].lines, 
-        labels=list(dfs.keys()), 
-        loc='upper left', 
+        handles=axarr[0, 1].lines,
+        labels=list(dfs.keys()),
+        loc='upper left',
         bbox_to_anchor = (0.13,-0.1,1,1),
         bbox_transform = plt.gcf().transFigure,
-        ncol=3, 
+        ncol=3,
         labelspacing=0.5,
         columnspacing=0.25,
         markerscale=2,
@@ -225,10 +244,15 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
         format='svg',
         transparent=True,
         bbox_inches='tight',
-        pad_inches=0)
+        pad_inches=0.1)
 
     output.seek(0)
-    return base64.b64encode(output.getvalue()).decode('utf-8').replace('\n', '')
+    b64 = base64.b64encode(output.getvalue()).decode('utf-8').replace('\n', '')
+
+    # Explicitly close plot to stop ipython complaining about memory
+    # (this also stops ipython displaying plots, but who cares)
+    plt.close()
+    return b64
 
 
 
@@ -250,5 +274,9 @@ def test():
 
 
 if __name__ == "__main__":
+    strh = logging.StreamHandler()
+    strh.setLevel(logging.DEBUG)
+    log.addHandler(strh)
+
     test()
 
