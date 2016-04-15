@@ -24,7 +24,7 @@ def readfile(filename):
     log.debug("Reading data from {0}".format(filename))
 
     # Guess which method to use based on file mimetype
-    mtype = mimetypes.guess_type(filename)
+    mtype,_ = mimetypes.guess_type(filename)
     log.debug("Detected MIME: {0}".format(mtype))
 
     # Plaintext BAX file
