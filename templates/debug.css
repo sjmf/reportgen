@@ -1,0 +1,3 @@
+* { box-sizing: border-box; outline: solid 2px #900; }
+* > * { outline-color: #090; }
+* > * > * { outline-color: #009; }
