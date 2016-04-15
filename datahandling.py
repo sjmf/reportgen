@@ -9,9 +9,6 @@ import subprocess
 
 # Add error logging
 log = logging.getLogger('datahandling.py')
-strh = logging.StreamHandler()
-strh.setLevel(logging.DEBUG)
-log.addHandler(strh)
 
 # Global variables
 TOOLS_DIR = "/Users/sam/Code/embedded/BuildAX/Software/Release/"
@@ -24,15 +21,17 @@ TOOLS_DIR = "/Users/sam/Code/embedded/BuildAX/Software/Release/"
     Read a BAX file and save it into Pandas' data structure
 '''
 def readfile(filename):
+    log.debug("Reading data from {0}".format(filename))
+
     # Guess which method to use based on file mimetype
     mtype = mimetypes.guess_type(filename)
-    log.info(mtype)
+    log.debug("Detected MIME: {0}".format(mtype))
 
-    # Binary BAX file (convert first)
-    if mtype[0] is None:
-        return df_from_bin(filename)
-    elif 'text' in mtype[0]:
+    # Plaintext BAX file
+    if mtype and 'text' in mtype:
         return df_from_csv(filename)
+    else: # Binary (convert first)
+        return df_from_bin(filename)
 
 
 
@@ -41,6 +40,7 @@ def readfile(filename):
 '''
 def df_from_bin(filename, decryption_keys=None):
 
+    log.debug("Decoding data file from binary")
     proc = subprocess.Popen([
         TOOLS_DIR + "BAXTest",
         "-Sf",                                           # Source:        file
@@ -49,6 +49,7 @@ def df_from_bin(filename, decryption_keys=None):
         "-Er",                                           # Encoding:      raw binary
         "-Os",                                           # Output:        stdout
         "-Mc",                                           # Mode (output): CSV
+        "-Pd",                                           # Packets:       decrypted only
         "-I"+decryption_keys if decryption_keys else ''  # Info file:     decryption_keys
     ],stdout=subprocess.PIPE)
 
@@ -61,6 +62,7 @@ def df_from_bin(filename, decryption_keys=None):
 '''
 def df_from_csv(file_descriptor):
 
+    log.debug("Reading CSV from filehandle: {0}".format(file_descriptor))
     df = pd.read_csv(
         filepath_or_buffer=file_descriptor,
         parse_dates=[['Date', 'Time']],
@@ -83,6 +85,7 @@ def df_from_csv(file_descriptor):
         ))
 
     # Drop encrypted rows
+    log.debug("Dropping encrypted rows...")
     df.dropna(inplace=True)
 
     df.index.names = ['DateTime']
@@ -224,23 +227,27 @@ def graph(datatype, timerange):
 '''
     Test operation
 '''
-def test():
+def test( datafile ):
     # Read file
-    #df = readfile("./testdata/fetch.bax")
-    #df = readfile("./testdata/fetch.bax.0.csv")
-
-    df = readfile("./testdata/LOG00001.TXT")
+    df = readfile( datafile )
     names = unique_sensors(df)
     dfs = split_by_id(df)
     dfs = fix_humidity(dfs)
     dfs = diff_pir(dfs)
 
-    print(dfs[names[0]].dtypes.index)
-    print(names)
-    print(date_range(df))
+    log.info(dfs[names[0]].dtypes.index)
+    log.info(names)
+    log.info(date_range(df))
 
 
 
 if __name__ == "__main__":
-    test()
+    import sys
+
+    strh = logging.StreamHandler()
+    strh.setLevel(logging.DEBUG)
+    log.addHandler(strh)
+    log.setLevel(logging.DEBUG)
+
+    test( sys.argv[1] )
 
