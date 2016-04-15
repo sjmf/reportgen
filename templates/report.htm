@@ -4,8 +4,8 @@
 <div class="cover">
     <h1> {{ series[0].label.split(' ')[0] }} Report{% if location is not none %}   : {{ location }} {% endif %}</h1>
     <h2> Weeks beginning {{ period[0] }} to {{ period[1] }} </h2>
-{% if map_b64 is not none %}   
-    <img src="data:image/svg+xml;charset=utf-8;base64,{{ map_b64 }}" />
+{% if map is not none %}
+    <img src="data:{{map.mime}};charset=utf-8;base64,{{ map.b64 }}" />
 {% endif %}
 {% if description is not none %}  
     <p class="description">{{ description }}</p>

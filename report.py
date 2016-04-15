@@ -6,6 +6,7 @@ import matplotlib as mpl
 import pandas as pd
 import jinja2
 import calendar
+import mimetypes
 import base64
 
 import datahandling as dh
@@ -40,11 +41,11 @@ def report(input_datafile, output_filename, *args, **kwargs):
     # Generate graphs using matplotlib for the following types:
     # (TODO: parameterize these for the ability to generate reports without some series)
     weeks = get_week_range(t_start, t_end, df)
-    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)"), ("RSSI", "RX Signal (dBm)")]
+    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("RSSI", "RX Signal (dBm)")]
 
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
     figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
-    
+
     # Format graphs and metadata into a data structure for the jinja2 templater
     # Generates a structure of the form: to_plot[week][series][data]
     # e.g. to_plot[0][0]['label'] == 'Temperature ˚C'
@@ -61,8 +62,17 @@ def report(input_datafile, output_filename, *args, **kwargs):
     ]
 
     # Read in the map 
-    map_b64 = read_map(map_filename)
-    output = render_template(weeks=weeks, to_plot=to_plot, location=location, description=description, map_b64=map_b64)
+    loc_map = read_map(map_filename)
+    log.debug('map type is '+ str(loc_map[1]))
+
+    output = render_template(
+        weeks=weeks,
+        to_plot=to_plot,
+        location=location,
+        description=description,
+        map=dict(zip(['b64', 'mime'],loc_map)) if loc_map[1] else None
+    )
+
     log.debug(output[:150].replace('\n', ' '))
 
     log.info( "Writing to {1} file {0}".format(output_filename,('HTM' if output_htm else 'PDF')) )
@@ -89,13 +99,12 @@ def set_mpl_params():
     mpl.rcParams['xtick.labelsize'] = 'small'
     mpl.rcParams['ytick.labelsize'] = 'small'
     mpl.rcParams['legend.fontsize'] = 'small'
-
     mpl.rcParams['legend.frameon'] = False
-    mpl.rcParams['savefig.dpi'] =  100.0
+    mpl.rcParams['savefig.dpi'] = 100.0
     mpl.rcParams['font.size'] = 10.0
 
 
-'''x
+'''
     Generate date range of weeks inclusive of start and end
 '''
 def get_week_range(t_start, t_end, df):
@@ -119,9 +128,14 @@ def get_week_range(t_start, t_end, df):
 def read_map(map_filename):
     try:
         with open(map_filename, 'rb') as t:
-            return base64.b64encode(t.read()).decode('utf8').replace('\n','')
+            log.debug("Reading map: '"+map_filename+"'")
+            return (
+                base64.b64encode(t.read()).decode('utf8').replace('\n',''),
+                mimetypes.guess_type(map_filename)[0]
+            )
     except (FileNotFoundError, TypeError):
-        return None
+        log.error("Map not found: '"+map_filename+"'")
+        return (None,None)
 
 
 '''
