@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+
+<title>Upload Files</title>
+<link rel="stylesheet" href="http://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.css">
+
+<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js"></script>
+
+<style type="text/css">
+nav.top-nav a.page-title {line-height: 122px; font-size: 48px; }
+nav.top-nav { height: 122px; }
+.caption {font-size: 1.25rem; font-weight: 300; }
+</style>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+
+<nav class="top-nav indigo darken-1">
+  <div class="container">
+    <div class="nav-wrapper"> <a class="page-title">BAX Report Generator</a> </div>
+  </div>
+</nav>
+
+<main>
+<div class="container"><div class="section">
+
+<div class="row"><div class="col s12">
+  <p class="caption">This form generates a PDF report from a BuildAX LRS dataset. 
+    You may upload multiple data files in the binary formats (.bax, .bin), or 
+    plaintext (.csv, .txt) formats. You may also upload a BAX_INFO.BIN file which will 
+    be used to decode data stored encrypted within the data files. </p>
+</div></div><!--row,col s12-->
+
+<div class="row"><div class="col s12">
+  <div class="card"><div class="card-content">
+    <span class="card-title">Metadata for your report</span>
+    <form id="form-metadata" action="" method="post">
+
+      <div class="input-field">
+        <i class="material-icons prefix">business</i>
+        <label for="location"> Deployment Location </label>
+        <input id="location" name="location" type="text">
+      </div>
+
+      <div class="input-field">
+        <i class="material-icons prefix">comment</i>
+        <label for="description"> Description (displayed on the title page)</label>
+        <textarea id="description" name="location" type="textbox" class="materialize-textarea"></textarea>
+      </div>
+
+      <label for="upload"> Map file (optional): </label>
+      <div class="input-field">
+        <i class="material-icons prefix">my_location</i>
+        <div class="file-field input-field">
+          <div class="btn blue">
+            <span>File</span>
+            <input type="file">
+          </div>
+          <div class="file-path-wrapper">
+            <input class="file-path validate" type="text">
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div><!--card, card-content-->
+</div></div><!--row, col s12-->
+
+<div class="row"><div class="col s12">
+  <div class="card"><div class="card-content">
+    <span class="card-title">Upload data files</span>
+    <form action="/upload" class="dropzone" id="datafile-dropzone"></form>
+  </div></div><!--card, card-content-->
+
+  <div class="row">
+    <input type="submit" class="btn blue col l3 push-l9 m4 push-m8 s6 push-s6" value="Generate report">
+  </div>
+</div></div><!--row, col s12-->
+
+</div><!--section-->
+
+
+<div class="progress indigo darken-1">
+  <div class="indeterminate blue "></div>
+</div>
