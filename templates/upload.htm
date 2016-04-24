@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
 <title>Upload Files</title>
+<!-- Online resources 
 <link rel="stylesheet" href="http://fonts.googleapis.com/icon?family=Material+Icons">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.css">
@@ -8,11 +9,41 @@
 <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js"></script>
+-->
+<!-- Local resources -->
+<link rel="stylesheet" href="css/material-icons.css">
+<link rel="stylesheet" href="css/materialize.min.css">
+<link rel="stylesheet" href="css/dropzone.min.css">
+
+<script type="text/javascript" src="js/jquery-2.1.1.min.js"></script>
+<script type="text/javascript" src="js/materialize.min.js"></script>
+<script type="text/javascript" src="js/dropzone.min.js"></script>
 
 <style type="text/css">
 nav.top-nav a.page-title {line-height: 122px; font-size: 48px; }
 nav.top-nav { height: 122px; }
 .caption {font-size: 1.25rem; font-weight: 300; }
+.dropzone { border: 2px dashed #2196F3; border-radius: 5px; }
+.dropzone .dz-preview.dz-file-preview .dz-image{
+  background: #82b1ff; border-radius: 4px;
+}
+.dropzone .dz-preview .dz-progress {
+  background: #2196F3; border-radius: 0; height:5px;
+}
+.dropzone .dz-preview .dz-progress .dz-upload{
+  background: #3949ab; border-radius: 0;
+}
+#upload-progress.progress {
+  transition: width 2s ease-out;
+  transition: opacity 2s ease-out;
+  width: 50%; margin: 0 auto;
+}
+#upload-progress.progress.collapsed {
+  opacity:0; width: 0;
+}
+dt:after {
+  content: ": ";
+}
 </style>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -34,11 +65,30 @@ nav.top-nav { height: 122px; }
     be used to decode data stored encrypted within the data files. </p>
 </div></div><!--row,col s12-->
 
+
+<div class="row"><div class="col s12">
+  <div class="card"><div class="card-content">
+
+    <div class="row"><div class="col s12">
+      <span class="card-title">Upload data files</span>
+      </div></div>
+
+    <form action="/upload" class="dropzone" id="file-drop">
+      <div class="dz-message needsclick">
+        Drop files here or click to upload.<br>
+        <span class="note needsclick">(Accepts types: <strong>.bin .bax .csv .txt)</strong></span>
+      </div>
+    </form>
+
+  </div></div><!--card, card-content-->
+</div></div><!--row, col s12-->
+
+
 <div class="row"><div class="col s12">
   <div class="card"><div class="card-content">
     <span class="card-title">Metadata for your report</span>
-    <form id="form-metadata" action="" method="post">
 
+    <form id="form-metadata" action="/metadata">
       <div class="input-field">
         <i class="material-icons prefix">business</i>
         <label for="location"> Deployment Location </label>
@@ -55,7 +105,7 @@ nav.top-nav { height: 122px; }
       <div class="input-field">
         <i class="material-icons prefix">my_location</i>
         <div class="file-field input-field">
-          <div class="btn blue">
+          <div class="waves-effect waves-light btn blue">
             <span>File</span>
             <input type="file">
           </div>
@@ -64,24 +114,140 @@ nav.top-nav { height: 122px; }
           </div>
         </div>
       </div>
+      <br />
+
+      <!-- Submit form -->
+      <div class="row"><div class="col s12">
+        <button id="modal-report" type="submit" class="waves-effect waves-light btn-large blue col l3 push-l9 m4 push-m8 s6 push-s6">
+          <i class="material-icons right">send</i>Generate report
+        </button>
+      </div></div>
+
     </form>
   </div></div><!--card, card-content-->
-</div></div><!--row, col s12-->
-
-<div class="row"><div class="col s12">
-  <div class="card"><div class="card-content">
-    <span class="card-title">Upload data files</span>
-    <form action="/upload" class="dropzone" id="datafile-dropzone"></form>
-  </div></div><!--card, card-content-->
-
-  <div class="row">
-    <input type="submit" class="btn blue col l3 push-l9 m4 push-m8 s6 push-s6" value="Generate report">
-  </div>
 </div></div><!--row, col s12-->
 
 </div><!--section-->
 
 
-<div class="progress indigo darken-1">
-  <div class="indeterminate blue "></div>
+<!-- Modal Structure -->
+<div id="generate-modal" class="modal">
+  <div class="modal-content">
+
+    <h4>Generate report</h4>
+
+    <div id="upload-files">
+      <p class="caption error red-text">Please upload data files first</p>
+    </div>
+
+    <div id="upload-running" class="hide">
+      <p class="caption">Please wait for file uploads to complete</p>
+      <!-- Progress bar -->
+      <div id="upload-progress" class="progress indigo darken-1">
+        <div class="indeterminate blue "></div>
+      </div>
+    </div>
+
+    <p id="upload-ready" class="hide caption">Click &quot;generate&quot; below to generate your report.</p>
+
+  </div>
+
+  <div class="modal-footer">
+    <a href="#!" class="modal-action modal-close waves-effect waves-blue btn-flat ">Cancel</a>
+    <a href="#!" id="generate-report" class="waves-effect waves-blue btn blue disabled">Generate</a>
+  </div>
 </div>
+
+
+<script type="text/javascript">
+$(function(){
+  ALLOWED_TYPES = ['bin','bax','csv','txt'];
+
+  filesUploading = 0;
+  Dropzone.autoDiscover = false;
+
+  var drz = new Dropzone(
+    "form#file-drop",
+    { 
+      url: "/upload",
+      method: "put",
+      maxFilesize: 512,
+      accept: function(file, done) {
+        if( $.inArray(file.name.split('.').pop(), ALLOWED_TYPES) !== -1 ) {
+          done()
+        } else {
+          done("Incorrect type: "+ ext)
+        }
+      }
+  });
+
+  incr_upload = function(file) {
+      console.log("UPLOADING "+file.name)
+      filesUploading++;
+      upload_running();
+  }
+  decr_upload = function(file) {
+      console.log("DONE "+file.name)
+      filesUploading--;
+  }
+
+  drz.on("addedfile", incr_upload);
+  drz.on("complete",  decr_upload);
+  drz.on("removedfile", decr_upload);
+
+//  drz.on("uploadprogress", function(file, progress) {
+//      console.log(progress)
+//      /* Maybe display some more file information on your page */
+//  });
+
+  // Style & display functions
+  upload_ready = function() {
+    console.log("upload_ready")
+    $('#upload-files').addClass("hide")
+    $('#upload-running').addClass("hide")
+    $('#upload-ready').removeClass("hide")
+    $('#generate-report').removeClass("disabled")
+    upload_ready.is_ready = true
+  }
+
+  upload_running = function() {
+    console.log("upload_running")
+    $('#upload-files').addClass("hide")
+    $('#upload-running').removeClass("hide")
+    $('#upload-ready').addClass("hide")
+    $('#generate-report').addClass("disabled")
+  }
+
+  $('#location').change(function(){
+    change=$(this).val()
+    $('#location-confirm').text(change)
+  })
+  
+  // Show confirmation modal
+  $("#modal-report").click(function(e){
+      e.preventDefault();
+      console.log(e)
+
+      enable_submit = function() {
+        if(filesUploading == 0 && drz.getAcceptedFiles().length > 0) {
+          console.info("Upload done")
+          upload_ready();
+        } else {
+          setTimeout(enable_submit, 200);
+        }
+      }
+
+      enable_submit();
+      $('#generate-modal').openModal();
+  });
+
+  $('#generate-report').click(function(e){
+    if(upload_ready.is_ready) {
+      $( "#form-metadata" ).submit();
+      console.log("Submit!")
+    }
+  });
+
+  window.drz = drz
+})
+</script>
