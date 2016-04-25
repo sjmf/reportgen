@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 
 <title>Upload Files</title>
-<!-- Online resources 
+<!-- Online resources -->
 <link rel="stylesheet" href="http://fonts.googleapis.com/icon?family=Material+Icons">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.css">
@@ -9,8 +9,8 @@
 <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js"></script>
--->
-<!-- Local resources -->
+
+<!-- Local resources 
 <link rel="stylesheet" href="css/material-icons.css">
 <link rel="stylesheet" href="css/materialize.min.css">
 <link rel="stylesheet" href="css/dropzone.min.css">
@@ -18,36 +18,31 @@
 <script type="text/javascript" src="js/jquery-2.1.1.min.js"></script>
 <script type="text/javascript" src="js/materialize.min.js"></script>
 <script type="text/javascript" src="js/dropzone.min.js"></script>
-
+-->
 <style type="text/css">
-nav.top-nav a.page-title {line-height: 122px; font-size: 48px; }
+nav.top-nav a.page-title { line-height: 122px; font-size: 48px; }
 nav.top-nav { height: 122px; }
-.caption {font-size: 1.25rem; font-weight: 300; }
+dt:after { content: ": "; }
+.caption { font-size: 1.25rem; font-weight: 300; }
 .dropzone { border: 2px dashed #2196F3; border-radius: 5px; }
-.dropzone .dz-preview.dz-file-preview .dz-image{
-  background: #82b1ff; border-radius: 4px;
-}
-.dropzone .dz-preview .dz-progress {
-  background: #2196F3; border-radius: 0; height:5px;
-}
-.dropzone .dz-preview .dz-progress .dz-upload{
-  background: #3949ab; border-radius: 0;
-}
+.dropzone .dz-preview.dz-file-preview .dz-image
+{ background: #82b1ff; border-radius: 4px; }
+.dropzone .dz-preview .dz-progress 
+{ background: #2196F3; border-radius: 0; height:5px; }
+.dropzone .dz-preview .dz-progress .dz-upload
+{ background: #3949ab; border-radius: 0; }
+#upload-progress.progress.collapsed 
+{ opacity:0; width: 0; }
 #upload-progress.progress {
   transition: width 2s ease-out;
   transition: opacity 2s ease-out;
   width: 50%; margin: 0 auto;
 }
-#upload-progress.progress.collapsed {
-  opacity:0; width: 0;
-}
-dt:after {
-  content: ": ";
-}
 </style>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
+<!-- body -->
 
 <nav class="top-nav indigo darken-1">
   <div class="container">
