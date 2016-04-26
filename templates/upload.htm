@@ -164,7 +164,7 @@ $(function(){
     "form#file-drop",
     { 
       url: "/upload",
-      method: "post", //"put",
+      method: "put", //"post", 
       maxFilesize: 512,
       accept: function(file, done) {
         if( $.inArray(file.name.split('.').pop(), ALLOWED_TYPES) !== -1 ) {
