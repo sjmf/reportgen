@@ -18,7 +18,7 @@ Session(app)
 
 flask_options = {
     'host':'0.0.0.0',
-#    'threaded':True
+    'threaded':True
 }
 
 # Make the upload directory
@@ -38,8 +38,7 @@ def list_uploaded_files():
     if 'files' in session:
         return Response(
                 json.dumps([
-                    (fil['original_name'], fil['size']) 
-                        for fil in session['files']
+                   fil for fil in session['files']
                 ]),
                 mimetype='application/json')
     else:
@@ -59,7 +58,6 @@ def clear_files():
 @app.route("/upload", methods=['PUT'])
 def upload():
     fil = request.files['file']
-    print('\n'.join(dir(fil)))
 
     if 'files' not in session:
         session['files'] = []
@@ -70,7 +68,9 @@ def upload():
 
     if fil and file_extension in ALLOWED_EXTENSIONS:
         # Put it on the disk:
-        fil.save(os.path.join(app.config['UPLOAD_FOLDER'], temporary_name))
+        path = os.path.join(app.config['UPLOAD_FOLDER'], temporary_name)
+        fil.save(path)
+        file_size = os.stat(path).st_size
 
         # Put it in the session (redis- experimental)
         #output = io.BytesIO()
@@ -80,7 +80,8 @@ def upload():
             'original_name'   : original_name,
             'temporary_name'  : temporary_name,
             'file_extension'  : file_extension,
-            'size'  : fil.content_length,
+            'file_size'       : file_size,
+            'content_type'    : fil.content_type
             #'bytes' : output,
         })
         print("{} files uploaded".format(len(session['files'])))

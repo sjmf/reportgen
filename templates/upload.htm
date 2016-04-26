@@ -10,15 +10,6 @@
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.3.0/min/dropzone.min.js"></script>
 
-<!-- Local resources 
-<link rel="stylesheet" href="css/material-icons.css">
-<link rel="stylesheet" href="css/materialize.min.css">
-<link rel="stylesheet" href="css/dropzone.min.css">
-
-<script type="text/javascript" src="js/jquery-2.1.1.min.js"></script>
-<script type="text/javascript" src="js/materialize.min.js"></script>
-<script type="text/javascript" src="js/dropzone.min.js"></script>
--->
 <style type="text/css">
 nav.top-nav a.page-title { line-height: 122px; font-size: 48px; }
 nav.top-nav { height: 122px; }
@@ -242,8 +233,16 @@ $(function(){
     }
   });
 
-  $.post('/files', function(data) {
-    console.log(data)
+  $.post('/files', function(files) {
+    for (f in files) {
+      f=files[f]
+      console.log(f)
+      drz.previewsContainer.appendChild(
+        Dropzone.createElement(
+          drz.options.previewTemplate.trim()
+        )
+      )
+    }
   })
 
   window.drz = drz
