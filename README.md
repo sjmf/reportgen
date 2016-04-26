@@ -7,11 +7,4 @@ graphs from BuildAX datasets.
 BAXTest tooling from the openmovement repository
 
 ## Python deps
-Install these using `pip3 install x`:
-
-matplotlib
-numpy
-pandas
-weasyprint
-jinja2
-Flask
+Install these using `pip3 install matplotlib numpy pandas weasyprint jinja2 flask flask-session redis`:
