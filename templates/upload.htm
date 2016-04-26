@@ -144,7 +144,6 @@ dt:after { content: ": "; }
     </div>
 
     <p id="upload-ready" class="hide caption">Click &quot;generate&quot; below to generate your report.</p>
-
   </div>
 
   <div class="modal-footer">
@@ -242,6 +241,10 @@ $(function(){
       console.log("Submit!")
     }
   });
+
+  $.post('/files', function(data) {
+    console.log(data)
+  })
 
   window.drz = drz
 })
