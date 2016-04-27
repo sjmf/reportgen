@@ -21,7 +21,9 @@ flask_options = {
     'threaded':True
 }
 
-# Make the upload directory
+'''
+   Auxilliary functions 
+'''
 def mkdir_p(path):
     try:
         os.makedirs(path)
@@ -32,28 +34,33 @@ def mkdir_p(path):
 def escape_filename(filename):
     return re.sub('[^a-zA-Z0-9\-_\.]', '', secure_filename(filename))
 
+'''
+    Application Routes
+'''
+@app.route('/', methods=['GET'])
+def index():
+    return render_template("upload.htm")
+
 @app.route("/files", methods=['GET', 'POST'])
 def list_uploaded_files():
     print(session)
     if 'files' in session:
         return Response(
-                json.dumps([
-                   fil for fil in session['files']
-                ]),
+                json.dumps( [fil for fil in session['files']] ),
                 mimetype='application/json')
     else:
         return Response( '[]', 
                 mimetype='application/json')
 
-@app.route('/files/<path:path>', methods=['DELETE'])
-def delete_file(path):
-    os.remove(secure_filename(path))
-    return 'File deleted', 200
-
 @app.route("/clear", methods=['GET', 'POST'])
 def clear_files():
     session['files'] = []
     return 'Files cleared', 200
+
+@app.route('/files/<path:path>', methods=['DELETE'])
+def delete_file(path):
+    os.remove(escape_filename(path))
+    return 'File deleted', 200
 
 @app.route("/upload", methods=['PUT'])
 def upload():
@@ -62,7 +69,7 @@ def upload():
     if 'files' not in session:
         session['files'] = []
 
-    original_name = fil.filename#escape_filename(fil.filename)
+    original_name = escape_filename(fil.filename)
     temporary_name = next(tempfile._get_candidate_names())
     file_extension = original_name.rsplit('.', 1)[1] if '.' in original_name else ''
 
@@ -90,24 +97,10 @@ def upload():
     return "File type '{}' is not allowed.".format(original_name.split('.')[1]), 401
 
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    return render_template("upload.htm")
-
 @app.route('/job', methods=['GET', 'POST'])
 def status():
+    fil = request.files['file']
     return render_template("jobstatus.htm")
-
-# Debugging methods - delete these and host from nginx
-@app.route('/js/<path:path>')
-def send_js(path):
-    return send_from_directory('js', path)
-@app.route('/css/<path:path>')
-def send_css(path):
-    return send_from_directory('css', path)
-@app.route('/fonts/<path:path>')
-def send_font(path):
-    return send_from_directory('fonts', path)
 
 
 if __name__ == "__main__":
