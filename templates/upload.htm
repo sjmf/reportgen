@@ -138,7 +138,7 @@ dt:after { content: ": "; }
       <p class="caption">Please wait for file uploads to complete</p>
       <!-- Progress bar -->
       <div id="upload-progress" class="progress indigo darken-1">
-        <div class="indeterminate blue "></div>
+        <div class="determinate blue "></div>
       </div>
     </div>
 
@@ -177,38 +177,47 @@ $(function(){
   incr_upload = function(file) {
     console.log("UPLOADING "+file.name)
     filesUploading++;
-    upload_running();
+    upload_is_ready();
   }
   decr_upload = function(file) {
     console.log("DONE "+file.name)
     filesUploading--;
+    upload_is_ready();
   }
 
   drz.on("addedfile", incr_upload);
   drz.on("complete",  decr_upload);
   drz.on("removedfile", decr_upload);
 
-//  drz.on("uploadprogress", function(file, progress) {
-//      console.log(progress)
-//      /* Maybe display some more file information on your page */
-//  });
+  drz.on("uploadprogress", function(file, progress) {
+    $("#upload-progress div.determinate").css("width", progress + "%")
+  });
 
   // Style & display functions
   upload_ready = function() {
-    console.log("upload_ready")
+    console.log("upload-ready")
     $('#upload-files').addClass("hide")
     $('#upload-running').addClass("hide")
     $('#upload-ready').removeClass("hide")
     $('#generate-report').removeClass("disabled")
-    upload_ready.is_ready = true
   }
 
   upload_running = function() {
-    console.log("upload_running")
+    console.log("upload-running")
     $('#upload-files').addClass("hide")
     $('#upload-running').removeClass("hide")
     $('#upload-ready').addClass("hide")
     $('#generate-report').addClass("disabled")
+  }
+
+  upload_is_ready = function() {
+    if (filesUploading == 0 && drz.getAcceptedFiles().length > 0) {
+      return upload_ready()   || true
+    } else if(filesUploading > 0) {
+      return upload_running() || false
+    } else {
+      return false
+    }
   }
 
   $('#location').change(function(){
@@ -222,12 +231,8 @@ $(function(){
     console.log(e)
 
     enable_submit = function() {
-      if(filesUploading == 0 && drz.getAcceptedFiles().length > 0) {
-        console.info("Upload done")
-        upload_ready();
-      } else {
+      if( ! upload_is_ready() )
         setTimeout(enable_submit, 200);
-      }
     }
 
     enable_submit();
@@ -235,10 +240,9 @@ $(function(){
   });
 
   $('#generate-report').click(function(e){
-    if(upload_ready.is_ready) {
+    drz.processQueue()
+    if( upload_is_ready() )
       $( "#form-metadata" ).submit();
-      console.log("Submit!")
-    }
   });
 
   $("#clear-files").click(function(e){
@@ -246,6 +250,9 @@ $(function(){
       console.log("files-cleared")
       Materialize.toast('Files cleared from server', 4000)
       drz.removeAllFiles()
+      filesUploading = 0
+      $('#upload-files').removeClass("hide")
+      $('#upload-running').addClass("hide")
     })
   })
 
