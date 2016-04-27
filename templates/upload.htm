@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <title>Upload Files</title>
 <!-- Online resources -->
 <link rel="stylesheet" href="http://fonts.googleapis.com/icon?family=Material+Icons">
@@ -24,16 +23,15 @@ dt:after { content: ": "; }
 { background: #3949ab; border-radius: 0; }
 #upload-progress.progress.collapsed 
 { opacity:0; width: 0; }
-#upload-progress.progress {
-  transition: width 2s ease-out;
-  transition: opacity 2s ease-out;
-  width: 50%; margin: 0 auto;
-}
+#upload-progress.progress 
+{ width: 50%; margin: 0 auto; }
+.fixed-action-btn 
+{ position: absolute; display: inline-block; right: 32px; bottom: 32px; }
 </style>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-<!-- body -->
+<body>
 
 <nav class="top-nav indigo darken-1">
   <div class="container">
@@ -64,6 +62,16 @@ dt:after { content: ": "; }
         Drop files here or click to upload.<br>
         <span class="note needsclick">(Accepts types: <strong>.bin .bax .csv .txt)</strong></span>
       </div>
+
+      <div id="#file-actions" class="fixed-action-btn horizontal click-to-toggle">
+        <a class="btn-floating btn-large blue">
+          <i class="material-icons">menu</i>
+        </a>
+        <ul>
+          <li><a title="Delete all files" id="clear-files" class="btn-floating red"><i class="material-icons">delete</i></a></li>
+          <li><a title="Toggle autoprocess queue" id="toggle-process" class="btn-floating yellow"><i class="material-icons">pause</i></a></li>
+        </ul>
+      </div>
     </form>
 
   </div></div><!--card, card-content-->
@@ -74,7 +82,7 @@ dt:after { content: ": "; }
   <div class="card"><div class="card-content">
     <span class="card-title">Metadata for your report</span>
 
-    <form id="form-metadata" action="/metadata">
+    <form id="form-metadata" method="post" action="/generate">
       <div class="input-field">
         <i class="material-icons prefix">business</i>
         <label for="location"> Deployment Location </label>
@@ -167,13 +175,13 @@ $(function(){
   });
 
   incr_upload = function(file) {
-      console.log("UPLOADING "+file.name)
-      filesUploading++;
-      upload_running();
+    console.log("UPLOADING "+file.name)
+    filesUploading++;
+    upload_running();
   }
   decr_upload = function(file) {
-      console.log("DONE "+file.name)
-      filesUploading--;
+    console.log("DONE "+file.name)
+    filesUploading--;
   }
 
   drz.on("addedfile", incr_upload);
@@ -210,20 +218,20 @@ $(function(){
   
   // Show confirmation modal
   $("#modal-report").click(function(e){
-      e.preventDefault();
-      console.log(e)
+    e.preventDefault();
+    console.log(e)
 
-      enable_submit = function() {
-        if(filesUploading == 0 && drz.getAcceptedFiles().length > 0) {
-          console.info("Upload done")
-          upload_ready();
-        } else {
-          setTimeout(enable_submit, 200);
-        }
+    enable_submit = function() {
+      if(filesUploading == 0 && drz.getAcceptedFiles().length > 0) {
+        console.info("Upload done")
+        upload_ready();
+      } else {
+        setTimeout(enable_submit, 200);
       }
+    }
 
-      enable_submit();
-      $('#generate-modal').openModal();
+    enable_submit();
+    $('#generate-modal').openModal();
   });
 
   $('#generate-report').click(function(e){
@@ -233,15 +241,56 @@ $(function(){
     }
   });
 
+  $("#clear-files").click(function(e){
+    $.post('/clear', function(files) {
+      console.log("files-cleared")
+      Materialize.toast('Files cleared from server', 4000)
+      drz.removeAllFiles()
+    })
+  })
+
+  $("#toggle-process").click(function(e){
+    drz.options.autoProcessQueue = !drz.options.autoProcessQueue
+    
+    colors=["green","yellow"]
+    icons=["play_arrow","pause"]
+    $("#toggle-process").removeClass(colors[+(!drz.options.autoProcessQueue)])
+                        .addClass(colors[+(drz.options.autoProcessQueue)])
+    $("#toggle-process i.material-icons").html(icons[+(drz.options.autoProcessQueue)])
+    
+    Materialize.toast((drz.options.autoProcessQueue) ? "Uploading files automatically" : "Queueing files", 4000)
+    drz.processQueue()
+  })
+
   $.post('/files', function(files) {
+    if(files.length > 0)
+      $('#file-drop').addClass("dz-started")
+
     for (f in files) {
       f=files[f]
       console.log(f)
-      drz.previewsContainer.appendChild(
-        Dropzone.createElement(
-          drz.options.previewTemplate.trim()
-        )
+
+      fileElement = Dropzone.createElement(
+        drz.options.previewTemplate.trim()
       )
+      $(fileElement).addClass("dz-processing dz-success dz-complete")
+      $(fileElement).find("[data-dz-name]").text(f.original_name)
+      $(fileElement).find("[data-dz-size]").html(drz.filesize(f.file_size))
+      drz.previewsContainer.appendChild(fileElement)
+
+      drz.files.push({
+        'upload':{
+          'progress':100,
+          'bytesSent':f.file_size,
+          'total':f.file_size,
+        },
+        'status':Dropzone.SUCCESS,
+        'type':f.content_type,
+        'name':f.original_name,
+        'size':f.file_size,
+        'accepted':true,
+        'previewElement':fileElement
+      })
     }
   })
 
