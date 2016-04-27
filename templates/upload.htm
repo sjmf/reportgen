@@ -13,8 +13,10 @@
 nav.top-nav a.page-title { line-height: 122px; font-size: 48px; }
 nav.top-nav { height: 122px; }
 dt:after { content: ": "; }
-.caption { font-size: 1.25rem; font-weight: 300; }
-.dropzone { border: 2px dashed #2196F3; border-radius: 5px; }
+.caption 
+{ font-size: 1.25rem; font-weight: 300; }
+.dropzone 
+{ border: 2px dashed #2196F3; border-radius: 5px; }
 .dropzone .dz-preview.dz-file-preview .dz-image
 { background: #82b1ff; border-radius: 4px; }
 .dropzone .dz-preview .dz-progress 
@@ -22,7 +24,7 @@ dt:after { content: ": "; }
 .dropzone .dz-preview .dz-progress .dz-upload
 { background: #3949ab; border-radius: 0; }
 #upload-progress.progress.collapsed 
-{ opacity:0; width: 0; }
+{ opacity:0; width: 0; transition: opacity 2s ease-out; }
 #upload-progress.progress 
 { width: 50%; margin: 0 auto; }
 .fixed-action-btn 
@@ -92,7 +94,7 @@ dt:after { content: ": "; }
       <div class="input-field">
         <i class="material-icons prefix">comment</i>
         <label for="description"> Description (displayed on the title page)</label>
-        <textarea id="description" name="location" type="textbox" class="materialize-textarea"></textarea>
+        <textarea id="description" name="description" type="textbox" class="materialize-textarea"></textarea>
       </div>
 
       <label for="upload"> Map file (optional): </label>
@@ -101,7 +103,7 @@ dt:after { content: ": "; }
         <div class="file-field input-field">
           <div class="waves-effect waves-light btn blue">
             <span>File</span>
-            <input type="file">
+            <input type="file" name="file">
           </div>
           <div class="file-path-wrapper">
             <input class="file-path validate" type="text">
@@ -175,12 +177,12 @@ $(function(){
   });
 
   incr_upload = function(file) {
-    console.log("UPLOADING "+file.name)
+    console.info("UPLOADING "+file.name)
     filesUploading++;
     upload_is_ready();
   }
   decr_upload = function(file) {
-    console.log("DONE "+file.name)
+    console.info("DONE "+file.name)
     filesUploading--;
     upload_is_ready();
   }
@@ -195,7 +197,7 @@ $(function(){
 
   // Style & display functions
   upload_ready = function() {
-    console.log("upload-ready")
+    console.info("upload-ready")
     $('#upload-files').addClass("hide")
     $('#upload-running').addClass("hide")
     $('#upload-ready').removeClass("hide")
@@ -203,7 +205,7 @@ $(function(){
   }
 
   upload_running = function() {
-    console.log("upload-running")
+    console.info("upload-running")
     $('#upload-files').addClass("hide")
     $('#upload-running').removeClass("hide")
     $('#upload-ready').addClass("hide")
@@ -219,32 +221,51 @@ $(function(){
       return false
     }
   }
-
-  $('#location').change(function(){
-    change=$(this).val()
-    $('#location-confirm').text(change)
-  })
   
   // Show confirmation modal
   $("#modal-report").click(function(e){
-    e.preventDefault();
-    console.log(e)
+    e.preventDefault()
 
     enable_submit = function() {
       if( ! upload_is_ready() )
-        setTimeout(enable_submit, 200);
+        setTimeout(enable_submit, 200)
     }
 
-    enable_submit();
-    $('#generate-modal').openModal();
+    enable_submit()
+    $('#generate-modal').openModal()
   });
-
+  
+  // Submit the metadata form and generate the report
   $('#generate-report').click(function(e){
+    console.log("Generating report")
     drz.processQueue()
-    if( upload_is_ready() )
-      $( "#form-metadata" ).submit();
-  });
+    if( upload_is_ready() ) {
+      var data = new FormData();
+      $.each($('#form-metadata')[0], function(i, e) {
+        if( $(e).attr('name') ) {
+          if( $(e).attr('type') === 'file' ) {
+            data.append('file-'+i, e.files[0])
+          } else {
+            data.append($(e).attr('name'), $(e).val())
+          }
+        }
+      })
+      $.ajax({
+        url: '/generate',
+        data: data,
+        cache: false,
+        contentType: false,
+        processData: false,
+        type: 'POST',
+        success: function(data){
+          // Navigate onwards
+          window.location.href = "/job";
+        }
+      })
+    }
+  })
 
+  // Wipe any files uploaded to the server already
   $("#clear-files").click(function(e){
     $.post('/clear', function(files) {
       console.log("files-cleared")
@@ -256,6 +277,7 @@ $(function(){
     })
   })
 
+  // Toggle automatic file uploads or queue multiple before submitting all
   $("#toggle-process").click(function(e){
     drz.options.autoProcessQueue = !drz.options.autoProcessQueue
     
@@ -269,13 +291,13 @@ $(function(){
     drz.processQueue()
   })
 
+  // Retrieve files already on the server
   $.post('/files', function(files) {
     if(files.length > 0)
       $('#file-drop').addClass("dz-started")
 
     for (f in files) {
       f=files[f]
-      console.log(f)
 
       fileElement = Dropzone.createElement(
         drz.options.previewTemplate.trim()

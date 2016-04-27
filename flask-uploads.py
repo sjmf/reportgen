@@ -21,6 +21,8 @@ flask_options = {
     'threaded':True
 }
 
+job_running = False
+
 '''
    Auxilliary functions 
 '''
@@ -39,11 +41,12 @@ def escape_filename(filename):
 '''
 @app.route('/', methods=['GET'])
 def index():
+    if job_running:
+        return redirect('/job')
     return render_template("upload.htm")
 
 @app.route("/files", methods=['GET', 'POST'])
 def list_uploaded_files():
-    print(session)
     if 'files' in session:
         return Response(
                 json.dumps( [fil for fil in session['files']] ),
@@ -54,6 +57,11 @@ def list_uploaded_files():
 
 @app.route("/clear", methods=['GET', 'POST'])
 def clear_files():
+    for fil in session['files']:
+        try:
+            os.remove(fil['temporary_name']) 
+        except FileNotFoundError:
+            pass
     session['files'] = []
     return 'Files cleared', 200
 
@@ -93,13 +101,27 @@ def upload():
         })
         print("{} files uploaded".format(len(session['files'])))
 
-        return "File Received: {}".format(original_name), 200#1 #redirect('job')
-    return "File type '{}' is not allowed.".format(original_name.split('.')[1]), 401
+        return "File Received: {}".format(original_name), 200
+    return "File type '{}' is not allowed.".format(file_extension), 401
 
+@app.route('/generate', methods=['POST'])
+def generate_report():
+
+    location = request.form['location']
+    description = request.form['description']
+    if request.files:
+        fil = next(iter(request.files.values()))
+        original_name = escape_filename(fil.filename)
+        print(original_name)
+
+    # Process & launch threads
+    job_running = True
+    
+    # If validated OK, redirect to job running page
+    return redirect('/job')
 
 @app.route('/job', methods=['GET', 'POST'])
-def status():
-    fil = request.files['file']
+def job_status():
     return render_template("jobstatus.htm")
 
 
