@@ -47,7 +47,7 @@ def escape_filename(filename):
 
 def save_file(fil, extensions_list):
     original_name = escape_filename(fil.filename)
-    file_extension = original_name.rsplit('.', 1)[1] if '.' in original_name else ''
+    file_extension = original_name.rsplit('.', 1)[1].lower() if '.' in original_name else ''
     temporary_name = next(tempfile._get_candidate_names()) +'.'+ file_extension
 
     if fil and file_extension in extensions_list:
@@ -154,6 +154,7 @@ def start_job(job):
 
 # Report generation worker thread
 def report_worker(job):
+    print(session)
     with app.test_request_context():
         log.debug("=============  STARTING WORKER  ==============")
         log.debug("Here's my session:")

@@ -168,7 +168,8 @@ $(function(){
       method: "put", //"post", 
       maxFilesize: 512,
       accept: function(file, done) {
-        if( $.inArray(file.name.split('.').pop(), ALLOWED_TYPES) !== -1 ) {
+        var ext = file.name.split('.').pop().toLowerCase()
+        if( $.inArray(ext, ALLOWED_TYPES) !== -1 ) {
           done()
         } else {
           done("Incorrect type: "+ ext)
