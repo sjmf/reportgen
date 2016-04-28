@@ -28,6 +28,10 @@ flask_options = {
     'threaded':True
 }
 
+# Store for stream loggers
+output_loggers = {}
+generated_pdfs = {}
+
 '''
    Auxilliary functions 
 '''
@@ -118,33 +122,35 @@ def upload():
 
 # Start worker thread job and capture its output
 def start_job(job):
-    ### Create the logger
-    sublog = logging.getLogger('report.py')
-    sublog.setLevel(logging.DEBUG)
+    ### Create the loggers
+    sublogs = [ logging.getLogger(l) for l in ['reporting.py','graphing.py','datahandling.py', __name__] ]
+    [ sublog.setLevel(logging.DEBUG) for sublog in sublogs ]
 
     ### Handle output with a StringIO object
     stream = io.StringIO()
-    [ sublog.removeHandler(handler) for handler in sublog.handlers ]
+    output_loggers[session.sid] = stream
+
+    [[ sublog.removeHandler(handler) for handler in sublog.handlers ] for sublog in sublogs ]
     ch = logging.StreamHandler(stream)
     ch.setLevel(logging.DEBUG)
 
     ### Add a formatter:
-    fmt = logging.Formatter('%(relativeCreated)6d %(threadName)s %(message)s')
+    #fmt = logging.Formatter('%(relativeCreated)6d %(threadName)s %(message)s')
+    fmt = logging.Formatter('%(message)s')
     ch.setFormatter(fmt)
 
-    ### Add the handler to the logger
-    sublog.addHandler(ch)
+    ### Add the handler to the loggers
+    [ sublog.addHandler(ch) for sublog in sublogs ]
 
     ### Add another handler for terminal output
     strh = logging.StreamHandler() 
     strh.setLevel(logging.DEBUG)
-    sublog.addHandler(strh)
+    [ sublog.addHandler(strh) for sublog in sublogs ]
 
     log.debug("===============  JOB SETUP  ==================")
     thread = threading.Thread(target=report_worker, args=(job,))
     thread.start()
 
-    thread.join()
 
 # Report generation worker thread
 def report_worker(job):
@@ -170,6 +176,11 @@ def report_worker(job):
         report.report(input_datafile, output_filename, **{**job, 'pdf':True, 'htm':False})
         
         log.debug("=============  WORKER FINISHED  ==============")
+        generated_pdfs[job['sid']] = output_filename
+
+    ### Close stream logger
+    output_loggers[job['sid']].close()
+    del output_loggers[job['sid']]
 
 
 @app.route('/generate', methods=['POST'])
@@ -180,32 +191,84 @@ def generate_report():
             file_info = save_file(fil, IMAGE_EXTENSIONS)
 
         session['job'] = {
-            'location' : escape(request.form['location']),
-            'description' : escape(request.form['description']),
-            'map_filename' : escape(file_info['original_name']),
-            'running' : False,
-            'complete' : False,
-            'files' : session['files']
+            'location'     : escape(request.form['location']),
+            'description'  : escape(request.form['description']),
+            'map_filename' : escape_filename(file_info['temporary_name']),
+            'map_file'     : escape_filename(file_info['original_name']),
+            'files'        : session['files'],
+            'sid'          : session.sid,
+            'running'      : True
         }
 
-        session['job']['running'] = True
         start_job(session['job'])
     
-    return 'DEBUG',418
     return redirect('/job')
 
 
 @app.route('/job', methods=['GET', 'POST'])
-def job_status():
+def jobs_page():
     if 'job' in session:
-        #log.debug(args)
-        return render_template("jobstatus.htm", **session['job'] )
-    return redirect('/')
+        try:
+            job_output = output_loggers[session.sid].getvalue()  
+        except KeyError:
+            log.debug("KeyError")
+            job_output = ''
+
+        #log.debug(session['job'])
+        return render_template("jobstatus.htm", 
+            **{ **session['job'], 'job_output': job_output })
+    return render_template("jobstatus.htm") 
+    #return redirect('/')
+
+@app.route('/download', methods=['GET'])
+def get_file():
+    
+    if session.sid in generated_pdfs.keys():
+        return "No file", 400
+
+#    result = generated_pdfs[session.sid].stream.read()
+#    response = make_response(result)
+#    response.headers["Content-Disposition"] = "attachment; filename=result.pdf"
+#    return response
+
+    return Response(
+        generated_pdfs[session.sid].stream.read(),
+        headers={"Content-Disposition":"attachment; filename=result.pdf"}
+    )
+
+
+@app.route('/status', methods=['GET'])
+def job_status():
+    try:
+        if session.sid in generated_pdfs.keys():
+            session['job']['done'] = True
+            session['job']['running'] = False
+
+            return Response(
+                    json.dumps({
+                        'status':'done',
+                        #'file':generated_pdfs[session.sid]
+                    })
+                    , mimetype='application/json')
+
+        return Response( 
+                json.dumps({
+                    'status':'running',
+                    'output': output_loggers[session.sid].getvalue()
+                })
+                , 200
+                , mimetype='application/json')
+    except KeyError:
+        return Response( 
+                json.dumps({ 'status':'stopped' })
+                , mimetype='application/json')
+        return Response('None',200,mimetype='text/plain')
 
 
 @app.route('/cancel', methods=['GET', 'POST'])
 def job_cancel():
     if 'job' in session:
+        ## TODO: Remove files
         del session['job']
         return 'Job cancelled',200 
     return 'No job running',200

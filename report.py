@@ -44,6 +44,7 @@ def report(input_datafile, output_filename, *args, **kwargs):
     types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("RSSI", "RX Signal (dBm)")]
 
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
+    # TODO: Replace this call with a multiprocessing threadpool + map?
     figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
 
     # Format graphs and metadata into a data structure for the jinja2 templater

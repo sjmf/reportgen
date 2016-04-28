@@ -192,7 +192,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
         log.debug( "Graphing {0} in cell {1} @{2},{3}".format(t_start, i, row, col) )
 
         for j in range(0, len(y_data)):
-            log.debug(str(j) +','+ str(len(x_data)) +','+ str(len(y_data))+','+ str(row)+','+ str(col))
+            #log.debug(str(j) +','+ str(len(x_data)) +','+ str(len(y_data))+','+ str(row)+','+ str(col))
             ax.plot(x_data[j], y_data[j], color=colors[j%len(colors)])
 
         # Force 24h graph time period

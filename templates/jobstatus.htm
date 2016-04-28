@@ -28,98 +28,121 @@ nav.top-nav { height: 122px; }
 <div class="container"><div class="section">
 
 <div class="row"><div class="col s12">
-  <div class="card"><div class="card-content">
-
+  
+  <div class="card {% if not running and not done %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
-{% if running %}  
-      <span class="card-title">Report job running</span>
+
+      <span class="card-title">Report job</span>
       <table>
         <thead>
           <tr>
               <th data-field="location">Location</th>
               <th data-field="description">Description</th>
               <th data-field="map-file">Map</th>
-              <th class="right-align" data-field="cancel">Cancel</th>
+              <th class="right-align" data-field="cancel">Remove</th>
+              {% if done %}
+              <th class="right-align" data-field="download">Download</th>
+              {% endif %}
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><strong>{{ location }}</strong></td>
             <td>{{ description }}</td>
-            <td>{{ map_file.original_name }}</td>
+            <td>{{ map_file }}</td>
             <td class="right-align">
               <a id="cancel" class="btn-floating waves-effect waves-light red lighten-1 white-text">
                 <i class="material-icons right">delete</i>
-              </a></td>
+              </a>
+            </td>
+            {% if done %}
+            <td class="right-align">
+              <a id="download" href="/download" class="btn-floating waves-effect waves-light blue white-text">
+                <i class="material-icons right">play_for_work</i>
+              </a>
+            </td>
+            {% endif %}
           </tr>
         </tbody>
       </table>
     </div></div><!--row, col s12-->
 
     <div class="row"><div class="col s12">
-      <p><strong>Processing files:</strong>
+      <p><strong>Files:</strong>
       {% for file in files %}
-        {{ file.original_name }},
+      {{ file.original_name }}{% if not loop.last %},{% endif %}
       {% endfor %} 
       </p>
     </div></div><!--row, col s12-->
   </div></div><!--card, card-content-->
-  <div class="card"><div class="card-content">
+
+  <div class="card {% if not running %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
 
       <span class="card-title">Log output</span>
-      <p>
-        <code class="job-output">
-          {% if job_output %}
-            {{ job_output }}
-          {% else %}
-            No output yet...
-          {% endif %}
-        </code>
-        </p>
-        <hr />
-        <p class="right-align">
-          <input type="checkbox" id="autoreload" checked="checked" class="filled-in"/> 
-          <label for="autoreload">Autoreload?</label>
-        </p>
+      <code class="job-output">
+        <pre>{% if job_output %} {{ job_output }} {% else %} No output yet... {% endif %}
+        </pre>
+      </code>
+
+      <div id="upload-progress" class="progress indigo darken-1">
+        <div class="indeterminate blue "></div>
+      </div>
+<!--
+      <p class="right-align">
+        <input type="checkbox" id="autoreload" checked="checked" class="filled-in"/> 
+        <label for="autoreload">Autoreload?</label>
+      </p>
+-->
     </div></div><!--row, col s12-->
-  </div></div><!--card, card-content-->
-{% else %}
-      <span class="card-title">Job status:</span>
+</div></div><!--card, card-content-->
+
+  <div id="output-card" class="card {% if running %}hide{% endif %}"><div class="card-content">
+    <div class="row"><div class="col s12">
+      <span class="card-title">Status</span>
+      {% if done %}
+      <div class="job-output caption">
+         Job complete. Download file above. 
+      </div>
+      {% else %}
       <div class="job-output caption">
           No job running. Please submit one <a href='/'>here</a>.
       </div>
+      {% endif %}
     </div></div><!--row, col s12-->
   </div></div><!--card, card-content-->
-{% endif %}
-
-{% if report %}  
-  <div class="card"><div class="card-content">
-    <div class="row"><div class="col s12">
-      <button id="dl-report" type="submit" class="waves-effect waves-light btn-flat blue white-text col l3 push-l9 m4 push-m8 s6 push-s6">
-        <i class="material-icons right">send</i>Download report
-      </button>
-    </div></div><!--row, col s12-->
-  </div></div><!--card, card-content-->
-{% endif %}
-
 </div></div><!--row, col s12-->
 
 </div><!--section-->
 
 
 <script type="text/javascript">
+INTERVAL = 2000
+
 $(function(){
-  True=true; False=false;// Sorry. Blame jinja2.
-  if ( ! {{running}} ) { return }
+  True=true; False=false; 
 
-  INTERVAL = 5000
-  reload = function(){ window.location = '' }
+  reload = function(){ 
+    $.getJSON('/status', function(data) {
+      console.log(data) 
 
-  if($('#autoreload').is(":checked")) {
+      if ("output" in data)
+        $('.job-output pre').text(data.output)
+      if (data.status == 'done'){
+        window.location = '/job' 
+      }
+      timeout = setTimeout(reload, INTERVAL)
+    })
+  }
+
+  $('.job-output pre').text( $('.job-output pre').text().trim() )
+
+  if( {{running}} ) {// && $('#autoreload').is(":checked")) {
     timeout = setTimeout(reload, INTERVAL)
   }
 
+  // HANDLERS
+  console.log("register handlers")
   $("#autoreload").change(function(e){
     console.info("autoreload change")
     clearTimeout(timeout)
@@ -131,7 +154,7 @@ $(function(){
   $("#cancel").click(function(e){  
     $.post('/cancel', function(files) {
       console.log("Job cancelled")
-      reload()
+      window.location = '/' 
     })
   })
 })
