@@ -125,7 +125,8 @@ def upload():
 # Start worker thread job and capture its output
 def start_job():
     ### Create the loggers
-    sublogs = [ logging.getLogger(l) for l in ['reporting.py','graphing.py','datahandling.py', __name__] ]
+    modules = ['reporting.py','datahandling.py', __name__]#'graphing.py',
+    sublogs = [ logging.getLogger(l) for l in modules ]
     [ sublog.setLevel(logging.DEBUG) for sublog in sublogs ]
 
     ### Handle output with a StringIO object
@@ -149,12 +150,12 @@ def start_job():
     strh.setLevel(logging.DEBUG)
     [ sublog.addHandler(strh) for sublog in sublogs ]
 
-    log.debug("===============  JOB SETUP  ==================")
+    log.info("===============  JOB SETUP  ==================")
     thread = threading.Thread(target=report_worker, args=(session.sid,))
     thread.start()
 
 
-def geef_session(sid):
+def get_session(sid):
     redis = Redis()
     session=pickle.loads(redis.get("session:"+sid))
     return session
@@ -165,11 +166,10 @@ def put_session(session, sid):
 
 # Report generation worker thread
 def report_worker(sid):
-
-    session = geef_session(sid)
+    session = get_session(sid)
     job = session['job']
 
-    log.debug("=============  STARTING WORKER  ==============")
+    log.info("=============  STARTING WORKER  ==============")
     log.debug("Here's my session:")
     log.debug(pprint.pformat(session))
 
@@ -184,21 +184,22 @@ def report_worker(sid):
         job['files'][0]['temporary_name'])
 
     if 'map_filename' in job:
-        job['map_filename'] = os.path.join(
-            app.config['UPLOAD_FOLDER'], 
-            job['map_filename'])
+        job['map_filename'] = job['map_filename']
 
-    report.report(input_datafile, output_filename, **{**job, 'pdf':True, 'htm':False})
+    report.report(input_datafile, output_filename, 
+                **{**job, 'pdf':True, 'htm':False})
     
-    log.debug("=============  WORKER FINISHED  ==============")
+    log.info("=============  WORKER FINISHED  ==============")
 
     ### Close stream logger
     output_loggers[sid].close()
     del output_loggers[sid]
 
     # Update session
-    session = geef_session(sid)
+    session = get_session(sid)
     session['running'] = False
+    session['job']['done'] = True
+
     session['generated_pdf'] = output_filename
     put_session(session, sid)
 
@@ -206,23 +207,23 @@ def report_worker(sid):
 @app.route('/generate', methods=['POST'])
 def generate_report():
     if 'job' not in session:
-
         session['job'] = {
             'location'     : escape(request.form['location']),
             'description'  : escape(request.form['description']),
             'files'        : session['files'],
             'sid'          : session.sid,
         }
+
         if request.files:
             fil = next(iter(request.files.values()))
             file_info = save_file(fil, IMAGE_EXTENSIONS)
             session['job'].update({
-                'map_filename' : escape_filename(file_info['temporary_name']),
+                'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
                 'map_file'     : escape_filename(file_info['original_name']),
             })
-        session['running'] = True
 
         start_job()
+        session['running'] = True
     
     return redirect('/job')
 
@@ -231,6 +232,7 @@ def generate_report():
 def jobs_page():
     if 'job' in session:
         job_output =''
+
         if session.sid in output_loggers:
             job_output = output_loggers[session.sid].getvalue()  
 
@@ -256,19 +258,17 @@ def get_file():
 
     return "No file", 400
 
+
 @app.route('/status', methods=['GET'])
 def job_status():
     if 'generated_pdf' in session:
-        session['job']['done'] = True
-        session['running'] = False
-
         return Response(
-            json.dumps({ 'status':'done' })
+            json.dumps({ 'status':'done',**session })
             , mimetype='application/json')
 
     elif not session['running']:
         return Response( 
-            json.dumps({ 'status':'stopped' })
+            json.dumps({ 'status':'ready' })
             , mimetype='application/json')
 
     return Response( 
@@ -282,12 +282,22 @@ def job_status():
 
 @app.route('/cancel', methods=['GET', 'POST'])
 def job_cancel():
-
     if 'job' in session:
-        ## TODO: Remove files
-        del session['job']
-        return 'Job cancelled',200 
-    return 'No job running',200
+        ### Remove files
+        try:
+            if 'map_file' in session:
+                os.unlink(session['job']['map_filename'])
+            os.unlink(session['generated_pdf'])
+        except FileNotFoundError:
+            pass
+        finally:
+            del session['generated_pdf']
+            del session['job']
+
+        return Response(json.dumps({ 'cancel':'ok' }), 200 
+                , mimetype='application/json')
+    return Response(json.dumps({ 'cancel':'no-job' }), 200 
+            , mimetype='application/json')
 
 
 if __name__ == "__main__":
