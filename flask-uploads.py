@@ -181,7 +181,7 @@ def report_worker(sid):
         next(tempfile._get_candidate_names()) + '.pdf')
     input_datafile = os.path.join(
         app.config['UPLOAD_FOLDER'], 
-        job['files'][0]['temporary_name'])
+        session['files'][0]['temporary_name'])
 
     if 'map_filename' in job:
         job['map_filename'] = job['map_filename']
@@ -210,7 +210,6 @@ def generate_report():
         session['job'] = {
             'location'     : escape(request.form['location']),
             'description'  : escape(request.form['description']),
-            'files'        : session['files'],
             'sid'          : session.sid,
         }
 
@@ -238,6 +237,7 @@ def jobs_page():
 
         return render_template("jobstatus.htm", 
             **{ **session['job'], 
+                'files' : session['files'], 
                 'job_output': job_output,
                 'running': session['running'],
                 'done': ('generated_pdf' in session)
@@ -250,11 +250,13 @@ def jobs_page():
 def get_file():
     if 'generated_pdf' in session:
         return send_from_directory(
-                app.config['UPLOAD_FOLDER'], 
-                session['generated_pdf'].split('/')[-1],
-                as_attachment=True,
-                attachment_filename=escape_filename(session['job']['location'] +'.pdf'),
-                mimetype='application/pdf')
+            app.config['UPLOAD_FOLDER'], 
+            session['generated_pdf'].split('/')[-1],
+            as_attachment=True,
+            attachment_filename=escape_filename(
+                (session['job']['location'] if session['job']['location'] else 'output')
+                    +'.pdf'),
+            mimetype='application/pdf')
 
     return "No file", 400
 
@@ -274,7 +276,7 @@ def job_status():
     return Response( 
             json.dumps({
                 'status':'running',
-                'output': output_loggers[session.sid].getvalue()
+                'output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'Loading...'
             })
             , 200
             , mimetype='application/json')
