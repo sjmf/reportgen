@@ -26,7 +26,8 @@ def report(input_datafile, output_filename, *args, **kwargs):
     # Parse arguments
     output_pdf = bool(kwargs.pop('pdf'))
     output_htm = bool(kwargs.pop('htm'))
-    map_filename = kwargs.pop('map_filename')
+
+    map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description')
     location = kwargs.pop('location')
 
@@ -63,15 +64,17 @@ def report(input_datafile, output_filename, *args, **kwargs):
     ]
 
     # Read in the map 
-    loc_map = read_map(map_filename)
-    log.debug('map type is '+ str(loc_map[1]))
+    if map_filename:
+        loc_map = read_map(map_filename)
+        log.debug('map type is '+ str(loc_map[1]))
 
     output = render_template(
         weeks=weeks,
         to_plot=to_plot,
         location=location,
         description=description,
-        map=dict(zip(['b64', 'mime'],loc_map)) if loc_map[1] else None
+        map=dict(zip(['b64', 'mime'],loc_map))
+                if map_filename and loc_map[1] else None
     )
 
     log.debug(output[:150].replace('\n', ' '))

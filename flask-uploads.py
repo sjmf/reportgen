@@ -182,9 +182,11 @@ def report_worker(sid):
     input_datafile = os.path.join(
         app.config['UPLOAD_FOLDER'], 
         job['files'][0]['temporary_name'])
-    job['map_filename'] = os.path.join(
-        app.config['UPLOAD_FOLDER'], 
-        job['map_filename'])
+
+    if 'map_filename' in job:
+        job['map_filename'] = os.path.join(
+            app.config['UPLOAD_FOLDER'], 
+            job['map_filename'])
 
     report.report(input_datafile, output_filename, **{**job, 'pdf':True, 'htm':False})
     
