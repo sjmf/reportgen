@@ -31,30 +31,78 @@ nav.top-nav { height: 122px; }
   <div class="card"><div class="card-content">
 
     <div class="row"><div class="col s12">
-      <span class="card-title">Job status output</span>
+{% if running %}  
+      <span class="card-title">Report job running</span>
+      <table>
+        <thead>
+          <tr>
+              <th data-field="location">Location</th>
+              <th data-field="description">Description</th>
+              <th data-field="map-file">Map</th>
+              <th class="right-align" data-field="cancel">Cancel</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>{{ location }}</strong></td>
+            <td>{{ description }}</td>
+            <td>{{ map_file.original_name }}</td>
+            <td class="right-align">
+              <a id="cancel" class="btn-floating waves-effect waves-light red lighten-1 white-text">
+                <i class="material-icons right">delete</i>
+              </a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div><!--row, col s12-->
 
-{% if job_output %}  
-      <div class="job-output caption">
+    <div class="row"><div class="col s12">
+      <p><strong>Processing files:</strong>
+      {% for file in files %}
+        {{ file.original_name }},
+      {% endfor %} 
+      </p>
+    </div></div><!--row, col s12-->
+  </div></div><!--card, card-content-->
+  <div class="card"><div class="card-content">
+    <div class="row"><div class="col s12">
+
+      <span class="card-title">Log output</span>
+      <p>
         <code class="job-output">
-          {{ job_output }}
+          {% if job_output %}
+            {{ job_output }}
+          {% else %}
+            No output yet...
+          {% endif %}
         </code>
-      </div>
+        </p>
+        <hr />
+        <p class="right-align">
+          <input type="checkbox" id="autoreload" checked="checked" class="filled-in"/> 
+          <label for="autoreload">Autoreload?</label>
+        </p>
+    </div></div><!--row, col s12-->
+  </div></div><!--card, card-content-->
 {% else %}
+      <span class="card-title">Job status:</span>
       <div class="job-output caption">
           No job running. Please submit one <a href='/'>here</a>.
       </div>
-    </div></div>
+    </div></div><!--row, col s12-->
+  </div></div><!--card, card-content-->
 {% endif %}
 
 {% if report %}  
+  <div class="card"><div class="card-content">
     <div class="row"><div class="col s12">
       <button id="dl-report" type="submit" class="waves-effect waves-light btn-flat blue white-text col l3 push-l9 m4 push-m8 s6 push-s6">
         <i class="material-icons right">send</i>Download report
       </button>
-    </div></div>
+    </div></div><!--row, col s12-->
+  </div></div><!--card, card-content-->
 {% endif %}
 
-  </div></div><!--card, card-content-->
 </div></div><!--row, col s12-->
 
 </div><!--section-->
@@ -62,8 +110,29 @@ nav.top-nav { height: 122px; }
 
 <script type="text/javascript">
 $(function(){
-  setTimeout(function(){
-    window.location = ''
-  }, 5000);
+  True=true; False=false;// Sorry. Blame jinja2.
+  if ( ! {{running}} ) { return }
+
+  INTERVAL = 5000
+  reload = function(){ window.location = '' }
+
+  if($('#autoreload').is(":checked")) {
+    timeout = setTimeout(reload, INTERVAL)
+  }
+
+  $("#autoreload").change(function(e){
+    console.info("autoreload change")
+    clearTimeout(timeout)
+    if(this.checked) {
+      timeout = setTimeout(reload, INTERVAL)
+    }
+  })
+
+  $("#cancel").click(function(e){  
+    $.post('/cancel', function(files) {
+      console.log("Job cancelled")
+      reload()
+    })
+  })
 })
 </script>
