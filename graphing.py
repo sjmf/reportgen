@@ -223,7 +223,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
                 labelbottom='on')  # labels along the bottom edge are on
 
     # Plot a legend inside the upper leftmost figure
-    leg = fig.figlegend(
+    leg = plt.figlegend(
         handles=axarr[0, 1].lines,
         labels=list(dfs.keys()),
         loc='upper left',
@@ -238,7 +238,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
     # Output to buffer using savefig
     output = BytesIO()
-    fig.savefig(
+    plt.savefig(
         output,
         format='svg',
         transparent=True,
