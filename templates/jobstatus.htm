@@ -29,7 +29,7 @@ nav.top-nav { height: 122px; }
 
 <div class="row"><div class="col s12">
   
-  <div class="card {% if not running and not done %}hide{% endif %}"><div class="card-content">
+  <div class="card {% if not status == 'running' and not status == 'done' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
 
       <span class="card-title">Report job</span>
@@ -40,22 +40,22 @@ nav.top-nav { height: 122px; }
               <th data-field="description">Description</th>
               <th data-field="map-file">Map</th>
               <th class="right-align" data-field="cancel">Remove</th>
-              {% if done %}
+              {% if status == 'done' %}
               <th class="right-align" data-field="download">Download</th>
               {% endif %}
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>{{ location }}</strong></td>
-            <td>{{ description }}</td>
-            <td>{{ map_file }}</td>
+            <td><strong>{{ job.location }}</strong></td>
+            <td>{{ job.description }}</td>
+            <td>{{ job.map_file }}</td>
             <td class="right-align">
               <a id="cancel" class="btn-floating waves-effect waves-light red lighten-1 white-text">
                 <i class="material-icons right">delete</i>
               </a>
             </td>
-            {% if done %}
+            {% if status == 'done' %}
             <td class="right-align">
               <a id="download" href="/download" class="btn-floating waves-effect waves-light blue white-text">
                 <i class="material-icons right">play_for_work</i>
@@ -76,7 +76,7 @@ nav.top-nav { height: 122px; }
     </div></div><!--row, col s12-->
   </div></div><!--card, card-content-->
 
-  <div class="card {% if not running %}hide{% endif %}"><div class="card-content">
+  <div class="card {% if not status == 'running' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
 
       <span class="card-title">Log output</span>
@@ -97,18 +97,22 @@ nav.top-nav { height: 122px; }
     </div></div><!--row, col s12-->
 </div></div><!--card, card-content-->
 
-  <div id="output-card" class="card {% if running %}hide{% endif %}"><div class="card-content">
+  <div id="output-card" class="card {% if status == 'running' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
       <span class="card-title">Status</span>
-      {% if done %}
       <div class="job-output caption">
+      {% if status == 'done' %}
          Job complete. Download file above or remove it to generate another. 
-      </div>
+      {% elif status == 'error' %}
+      <p class="red-text">
+        An error occurred. Please <a href="mailto:buildax@ncl.ac.uk">report it</a> so that we can fix it, or try again later. :-(
+      </p>
+      <br/>
+      <p><a class="red-text" href="/cancel">Cancel job</a></p>
       {% else %}
-      <div class="job-output caption">
           No job running. Please submit one <a href='/'>here</a>.
-      </div>
       {% endif %}
+      </div>
     </div></div><!--row, col s12-->
   </div></div><!--card, card-content-->
 </div></div><!--row, col s12-->
@@ -137,7 +141,7 @@ $(function(){
 
   $('.job-output pre').text( $('.job-output pre').text().trim() )
 
-  if( {{running}} ) {// && $('#autoreload').is(":checked")) {
+  if( {{status == 'running'}} ) {// && $('#autoreload').is(":checked")) {
     timeout = setTimeout(reload, INTERVAL)
   }
 
