@@ -160,6 +160,7 @@ $(function(){
 
   filesUploading = 0;
   Dropzone.autoDiscover = false;
+  Dropzone.parallelUploads = 1; // Fix for bad flask session handling
 
   var drz = new Dropzone(
     "form#file-drop",
@@ -293,12 +294,12 @@ $(function(){
   })
 
   // Retrieve files already on the server
-  $.post('/files', function(files) {
-    if(files.length > 0)
+  $.get('/status', function(data) {
+    if(data.files.length > 0)
       $('#file-drop').addClass("dz-started")
 
-    for (f in files) {
-      f=files[f]
+    for (f in data.files) {
+      f=data.files[f]
 
       fileElement = Dropzone.createElement(
         drz.options.previewTemplate.trim()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
-import io, os, errno, re, json, tempfile, logging, threading
+import io, os, errno, re, json, tempfile, logging, threading, sys
 import report
 from flask import Flask, current_app, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
 from flask.ext.session import Session
@@ -68,25 +68,29 @@ def save_file(fil, extensions_list):
 
     return None
 
+def get_session(sid):
+    redis = Redis()
+    return pickle.loads(redis.get("session:"+sid))
+
+def put_session(session, sid):
+    redis = Redis()
+    redis.set("session:"+sid, pickle.dumps(session)) 
+
 '''
     Application Routes
 '''
 @app.route('/', methods=['GET'])
 def index():
+    # Set up some session variables so they are not undefined
+    if 'status' not in session:
+        session['status'] = 'ready'
+
+    if 'files' not in session:
+        session['files'] = []
+
     if 'job' in session.keys():
         return redirect('/job')
     return render_template("upload.htm")
-
-
-@app.route("/files", methods=['GET', 'POST'])
-def list_uploaded_files():
-    if 'files' in session:
-        return Response(
-                json.dumps( [fil for fil in session['files']] ),
-                mimetype='application/json')
-    else:
-        return Response( '[]', 
-                mimetype='application/json')
 
 
 @app.route("/clear", methods=['GET', 'POST'])
@@ -108,10 +112,11 @@ def delete_file(path):
 
 @app.route("/upload", methods=['PUT'])
 def upload():
-    fil = request.files['file']
+    # WARNING: session['files'].append() is NOT threadsafe.
+    # concurrent file uploads are broken until I rewrite Session
+    # handling to not use https://github.com/fengsp/flask-session.
 
-    if 'files' not in session:
-        session['files'] = []
+    fil = request.files['file']
 
     file_info = save_file(fil, ALLOWED_EXTENSIONS)
     if file_info:
@@ -138,8 +143,8 @@ def start_job():
     ch.setLevel(logging.DEBUG)
 
     ### Add a formatter:
-    #fmt = logging.Formatter('%(relativeCreated)6d %(threadName)s %(message)s')
-    fmt = logging.Formatter('%(message)s')
+    fmt = logging.Formatter('%(relativeCreated)6d %(threadName)s %(message)s')
+    #fmt = logging.Formatter('%(message)s')
     ch.setFormatter(fmt)
 
     ### Add the handler to the loggers
@@ -154,55 +159,55 @@ def start_job():
     thread = threading.Thread(target=report_worker, args=(session.sid,))
     thread.start()
 
-
-def get_session(sid):
-    redis = Redis()
-    session=pickle.loads(redis.get("session:"+sid))
-    return session
-
-def put_session(session, sid):
-    redis = Redis()
-    redis.set("session:"+sid, pickle.dumps(session)) 
-
 # Report generation worker thread
 def report_worker(sid):
-    session = get_session(sid)
-    job = session['job']
+    try:
+        session = get_session(sid)
+        job = session['job']
 
-    log.info("=============  STARTING WORKER  ==============")
-    log.debug("Here's my session:")
-    log.debug(pprint.pformat(session))
+        log.info("=============  STARTING WORKER  ==============")
+        log.debug("Here's my session:")
+        log.debug(pprint.pformat(session))
 
-# TODO: concatenate input datafiles or modify datahandling to take a list (while maintaining backwards compatibility)
-    
-    ### Expand paths to full location on filesystem 
-    output_filename = os.path.join(
-        app.config['UPLOAD_FOLDER'], 
-        next(tempfile._get_candidate_names()) + '.pdf')
-    input_datafile = os.path.join(
-        app.config['UPLOAD_FOLDER'], 
-        session['files'][0]['temporary_name'])
+        
+        # Expand paths to full location on filesystem 
+        output_filename = os.path.join(
+            app.config['UPLOAD_FOLDER'], 
+            next(tempfile._get_candidate_names()) + '.pdf')
+        
+        # Make list of input datafiles
+        input_datafiles = [
+                os.path.join( app.config['UPLOAD_FOLDER'], f['temporary_name'])
+            for f in session['files'] ]
 
-    if 'map_filename' in job:
-        job['map_filename'] = job['map_filename']
+        report.report(input_datafiles, output_filename, 
+                    **{**job, 'pdf':True, 'htm':False})
+        
+        log.info("=============  WORKER FINISHED  ==============")
+        
+        # Put generated pdf in the session last thing before finally
 
-    report.report(input_datafile, output_filename, 
-                **{**job, 'pdf':True, 'htm':False})
-    
-    log.info("=============  WORKER FINISHED  ==============")
+        # Update session
+        session = get_session(sid)
+        session['generated_pdf'] = output_filename
+        session['status'] = 'done'
 
-    ### Close stream logger
-    output_loggers[sid].close()
-    del output_loggers[sid]
+    except Exception as e:
+        log.critical("Exception occurred in worker thread")
+        log.critical(sys.exc_info()[0])
 
-    # Update session
-    session = get_session(sid)
-    session['running'] = False
-    session['job']['done'] = True
+        session['status'] = 'error'
+        session['generated_pdf'] = None
+        raise
 
-    session['generated_pdf'] = output_filename
-    put_session(session, sid)
+    finally:
+        put_session(session, sid)
 
+        # Close stream logger
+        output_loggers[sid].close()
+        del output_loggers[sid]
+
+        log.removeHandler(log.handlers[1])
 
 @app.route('/generate', methods=['POST'])
 def generate_report():
@@ -222,7 +227,7 @@ def generate_report():
             })
 
         start_job()
-        session['running'] = True
+        session['status'] = 'running'
     
     return redirect('/job')
 
@@ -235,15 +240,8 @@ def jobs_page():
         if session.sid in output_loggers:
             job_output = output_loggers[session.sid].getvalue()  
 
-        return render_template("jobstatus.htm", 
-            **{ **session['job'], 
-                'files' : session['files'], 
-                'job_output': job_output,
-                'running': session['running'],
-                'done': ('generated_pdf' in session)
-            })
-
-    return render_template("jobstatus.htm") 
+        return render_template("jobstatus.htm", **{ **dict(session), 'job_output':job_output }) 
+    return render_template("jobstatus.htm", **dict(session)) 
 
 
 @app.route('/download', methods=['GET'])
@@ -263,24 +261,13 @@ def get_file():
 
 @app.route('/status', methods=['GET'])
 def job_status():
-    if 'generated_pdf' in session:
-        return Response(
-            json.dumps({ 'status':'done',**session })
-            , mimetype='application/json')
+    if 'status' in session and session['status'] is 'running':
+        return Response( json.dumps({
+                **dict(session),
+                'output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'No output'
+            }), mimetype='application/json')
 
-    elif not session['running']:
-        return Response( 
-            json.dumps({ 'status':'ready' })
-            , mimetype='application/json')
-
-    return Response( 
-            json.dumps({
-                'status':'running',
-                'output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'Loading...'
-            })
-            , 200
-            , mimetype='application/json')
-
+    return Response(json.dumps(dict(session)), mimetype='application/json')
 
 @app.route('/cancel', methods=['GET', 'POST'])
 def job_cancel():
@@ -289,11 +276,14 @@ def job_cancel():
         try:
             if 'map_file' in session:
                 os.unlink(session['job']['map_filename'])
-            os.unlink(session['generated_pdf'])
-        except FileNotFoundError:
+            if 'generated_pdf' in session:
+                os.unlink(session['generated_pdf'])
+        except:
+            log.warning("Exception in cancel")
             pass
         finally:
-            del session['generated_pdf']
+            if 'generated_pdf' in session:
+                del session['generated_pdf']
             del session['job']
 
         return Response(json.dumps({ 'cancel':'ok' }), 200 
@@ -306,6 +296,7 @@ if __name__ == "__main__":
     strh = logging.StreamHandler() 
     strh.setLevel(logging.DEBUG)
     log.addHandler(strh)
+
     mkdir_p(app.config['UPLOAD_FOLDER'])
     app.run(**flask_options)
 
