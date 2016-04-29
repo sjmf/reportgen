@@ -44,20 +44,20 @@ def report(input_datafiles, output_filename, *args, **kwargs):
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
     # Single-threaded: 46.72s
-    #figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
-    from functools import partial
+    figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
+#    from functools import partial
 
     # e.g. ('Light', 'Light (lux)', Timestamp('2014-12-29 00:00:00', offset='W-MON'), Timestamp('2015-01-04 00:00:00', offset='W-MON')),
-    series = sum([[( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ],[])
+#    series = sum([[( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ],[])
 
-    start_time = time.time()
+#    start_time = time.time()
     # Plotting graphs this way gives an error:
     # The process has forked and you cannot use this CoreFoundation functionality safely. You MUST exec().
     # Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
-    p = multiprocessing.Pool()
-    figs = p.map(plot_weekly, series)
+#    p = multiprocessing.Pool()
+#    figs = p.map(plot_weekly, series)
 
-    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
+#    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
 
     # Format graphs and metadata into a data structure for the jinja2 templater
     # Generates a structure of the form: to_plot[week][series][data]
