@@ -1,0 +1,8 @@
+numpy
+pandas
+matplotlib
+weasyprint
+jinja2
+flask
+flask-session
+redis
