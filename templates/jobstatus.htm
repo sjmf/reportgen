@@ -28,7 +28,7 @@ nav.top-nav { height: 122px; }
 <div class="container"><div class="section">
 
 <div class="row"><div class="col s12">
-  
+{% if job is defined %}  
   <div class="card {% if not status == 'running' and not status == 'done' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
 
@@ -95,8 +95,8 @@ nav.top-nav { height: 122px; }
       </p>
 -->
     </div></div><!--row, col s12-->
-</div></div><!--card, card-content-->
-
+  </div></div><!--card, card-content-->
+{% endif %}
   <div id="output-card" class="card {% if status == 'running' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
       <span class="card-title">Status</span>
