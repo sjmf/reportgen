@@ -5,7 +5,7 @@ import matplotlib as mpl
 import pandas as pd
 
 import datahandling as dh
-from graphing import plot_weekly 
+from graphing import plot_weekly, weekly_graph
 
 # Tell me what you're doing, scripts :)
 logging.getLogger().setLevel(logging.DEBUG)
