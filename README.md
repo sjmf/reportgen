@@ -6,5 +6,8 @@ graphs from BuildAX datasets.
 ## Dependencies
 BAXTest tooling from the openmovement repository
 
+## APT deps
+`apt-get install python-dev libxml2 libxml2-dev libxslt-dev`
+
 ## Python deps
-Install these using `pip3 install matplotlib numpy pandas weasyprint jinja2 flask flask-session redis`:
+Install these using `pip3 install -r requirements.txt`:
