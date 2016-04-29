@@ -6,12 +6,15 @@ import numpy as np
 import logging
 import mimetypes
 import subprocess
+import os
 
 # Add error logging
 log = logging.getLogger('datahandling.py')
 
 # Global variables
-TOOLS_DIR = "/Users/sam/Code/embedded/BuildAX/Software/Release/"
+TOOLS_DIR = '/home/sam/baxsw/Release'
+if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
+    raise FileNotFoundError("BuildAX tooling missing")
 
 # STFU SettingWithCopyWarning
 #pd.set_option('chained_assignment', None)
@@ -42,7 +45,7 @@ def df_from_bin(filename, decryption_keys=None):
 
     log.debug("Decoding data file from binary")
     proc = subprocess.Popen([
-        TOOLS_DIR + "BAXTest",
+        os.path.join(TOOLS_DIR, "BAXTest"),
         "-Sf",                                           # Source:        file
         "-D"+filename,                                   # Descriptor:    filename
         "-Fu",                                           # Format:        units (binary)
