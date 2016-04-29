@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 # coding: utf-8
-import argparse, logging
-import weasyprint as wp
+import argparse, base64, calendar, jinja2, logging, mimetypes, multiprocessing, time, weasyprint
 import matplotlib as mpl
 import pandas as pd
-import jinja2
-import calendar
-import mimetypes
-import base64
 
 import datahandling as dh
-from graphing import weekly_graph
+from graphing import plot_weekly 
 
 # Tell me what you're doing, scripts :)
 logging.getLogger().setLevel(logging.DEBUG)
@@ -19,9 +14,9 @@ log = logging.getLogger('report.py')
 template_dir = "templates/"
 
 '''
-    Generate a report PDF from an input BAX datafile
+    Generate a report PDF from an input BAX datafile list
 '''
-def report(input_datafile, output_filename, *args, **kwargs):
+def report(input_datafiles, output_filename, *args, **kwargs):
 
     # Parse arguments
     output_pdf = bool(kwargs.pop('pdf'))
@@ -31,10 +26,11 @@ def report(input_datafile, output_filename, *args, **kwargs):
     description = kwargs.pop('description')
     location = kwargs.pop('location')
 
+    log.info("File list: "+ '\n'.join(input_datafiles))
+
     # Perform data read-in using the datahandling module and apply corrections
-    log.info("Reading data from '{0}'".format(input_datafile))
-    df, dfs, t_start, t_end = read_data(input_datafile)
-    log.info("Data file ranges from {0} to {1}".format(t_start, t_end))
+    df, dfs, t_start, t_end = read_data(input_datafiles)
+    log.info("Data files range from {0} to {1}".format(t_start, t_end))
  
     # Set sensible matplotlib defaults for plotting graphs
     set_mpl_params()
@@ -43,10 +39,25 @@ def report(input_datafile, output_filename, *args, **kwargs):
     # (TODO: parameterize these for the ability to generate reports without some series)
     weeks = get_week_range(t_start, t_end, df)
     types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("RSSI", "RX Signal (dBm)")]
-
+    
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
+
     # TODO: Replace this call with a multiprocessing threadpool + map?
-    figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
+    # Single-threaded: 46.72s
+    #figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
+    from functools import partial
+
+    # e.g. ('Light', 'Light (lux)', Timestamp('2014-12-29 00:00:00', offset='W-MON'), Timestamp('2015-01-04 00:00:00', offset='W-MON')),
+    series = sum([[( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ],[])
+
+    start_time = time.time()
+    # Plotting graphs this way gives an error:
+    # The process has forked and you cannot use this CoreFoundation functionality safely. You MUST exec().
+    # Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
+    p = multiprocessing.Pool()
+    figs = p.map(plot_weekly, series)
+
+    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
 
     # Format graphs and metadata into a data structure for the jinja2 templater
     # Generates a structure of the form: to_plot[week][series][data]
@@ -85,9 +96,9 @@ def report(input_datafile, output_filename, *args, **kwargs):
         with open(output_filename, 'w+') as t: t.write(output)
     else:
         # write to PDF
-        print_css = wp.CSS(template_dir+"report.css")
-        debug_css = wp.CSS(template_dir+"debug.css")
-        htm = wp.HTML(string=output, base_url='.')
+        print_css = weasyprint.CSS(template_dir+"report.css")
+        debug_css = weasyprint.CSS(template_dir+"debug.css")
+        htm = weasyprint.HTML(string=output, base_url='.')
         pdf = htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])#, debug_css])
 
 
@@ -143,13 +154,25 @@ def read_map(map_filename):
 
 
 '''
-    Read a BuildAX datafile and return 
+    Read a BuildAX datafile. Accept:
+       * List of datafiles
+    and return:
        * a Pandas DataFrame with corrections applied
        * start and end date/time values for the period
 '''
-def read_data(input_datafile):
+def read_data(input_datafiles):
     pd.set_option('chained_assignment', None) # Hush up, SettingWithCopyWarning
-    df = dh.readfile(input_datafile)
+
+    start_time = time.time()
+    # Use a generator to concatenate datafiles into a list 
+    # Single threaded: 60.73 seconds 
+    #df = pd.concat( (dh.readfile(infile) for infile in input_datafiles) )
+
+    # Multithreaded:  19.43 seconds. Winner!
+    p = multiprocessing.Pool()
+    df = pd.concat( p.map(dh.readfile, input_datafiles) )
+    
+    log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
 
     # Extract sensor IDs / names and split into dict by sensor ID
     t_start, t_end = (df.index.min(), df.index.max())
@@ -183,17 +206,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate a report PDF from an input BAX datafile')
 
     # Required args:
-    parser.add_argument("input_datafile",  action="store", type=str, help="Input file path (CSV or BIN BAX data)")
+    parser.add_argument("input_datafiles", nargs='+', action="store", type=str, help="Input file path list (CSV or BIN BAX data)")
     parser.add_argument("output_filename", action="store", type=str, help="Output file path (PDF report)")
 
     # Optional args
-    parser.add_argument("--map",         dest="map_filename", action="store", type=str, help="SVG map file path")
+    parser.add_argument("--map",         dest="map_filename", action="store", type=str, help="Image file path")
     parser.add_argument("--location",    dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
     parser.add_argument("--description", dest="description",  action="store", type=str, help="Verbose description to add to report")
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--pdf", action="store_true", default=False, help="Output a PDF file")
-    group.add_argument("-m", "--htm", action="store_true", default=False, help="Output hypertext markup")
+    group.add_argument("-k", "--htm", action="store_true", default=False, help="Output hypertext markup")
 
     parser.add_argument('--verbose', '-v', action='count')
 

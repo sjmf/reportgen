@@ -21,11 +21,11 @@ TOOLS_DIR = "/Users/sam/Code/embedded/BuildAX/Software/Release/"
     Read a BAX file and save it into Pandas' data structure
 '''
 def readfile(filename):
-    log.debug("Reading data from {0}".format(filename))
+    log.info("Reading data from {0}".format(filename))
 
     # Guess which method to use based on file mimetype
     mtype,_ = mimetypes.guess_type(filename)
-    log.debug("Detected MIME: {0}".format(mtype))
+    log.info("Detected MIME: {0}".format(mtype))
 
     # Plaintext BAX file
     if mtype and 'text' in mtype:

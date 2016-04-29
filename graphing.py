@@ -154,7 +154,7 @@ def multiaxis_graph(x_data, y_data, *args, **kwargs):
 '''
     Plot a series as weekly views using subplots
 '''
-def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
+def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
     # Argument sanity check
     if t_end - t_start > pd.Timedelta('6 days'):
@@ -163,7 +163,6 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
     rows=4
     cols=2
     colors = kwargs.pop('colors', graph.colors)
-
     # Eight subplots, returned as a 2-d array
     fig, axarr = plt.subplots(rows, cols, sharey=True)
     fig.subplots_adjust(hspace=0, wspace=0)
@@ -224,7 +223,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
                 labelbottom='on')  # labels along the bottom edge are on
 
     # Plot a legend inside the upper leftmost figure
-    leg = plt.figlegend(
+    leg = fig.figlegend(
         handles=axarr[0, 1].lines,
         labels=list(dfs.keys()),
         loc='upper left',
@@ -239,7 +238,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
 
     # Output to buffer using savefig
     output = BytesIO()
-    plt.savefig(
+    fig.savefig(
         output,
         format='svg',
         transparent=True,
@@ -254,6 +253,13 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, *args, **kwargs):
     plt.close()
     return b64
 
+
+'''
+    Alias of weekly_graph() which expands a tuple to the arguments:
+        dfs, series, y_label, t_start, t_end:
+'''
+def plot_weekly(t):
+    return weekly_graph(*t)
 
 
 '''
