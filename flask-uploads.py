@@ -44,8 +44,10 @@ def mkdir_p(path):
         if exc.errno == errno.EEXIST and os.path.isdir(path): pass
         else: raise
 
+
 def escape_filename(filename):
     return re.sub('[^a-zA-Z0-9\-_\.]', '', secure_filename(filename))
+
 
 def save_file(fil, extensions_list):
     original_name = escape_filename(fil.filename)
@@ -68,96 +70,70 @@ def save_file(fil, extensions_list):
 
     return None
 
+
+# Override get_session directly from Redis (for thread use)
 def get_session(sid):
     redis = Redis()
     return pickle.loads(redis.get("session:"+sid))
+
 
 def put_session(session, sid):
     redis = Redis()
     redis.set("session:"+sid, pickle.dumps(session)) 
 
-'''
-    Application Routes
-'''
-@app.route('/', methods=['GET'])
-def index():
-    # Set up some session variables so they are not undefined
-    if 'status' not in session:
-        session['status'] = 'ready'
 
-    if 'files' not in session:
-        session['files'] = []
-
-    if 'job' in session.keys():
-        return redirect('/job')
-    return render_template("upload.htm")
+# Log handling for threaded work
+def default_log_handler(log):
+    strh = logging.StreamHandler() 
+    strh.setLevel(logging.DEBUG)
+    log.addHandler(strh)
 
 
-@app.route("/clear", methods=['GET', 'POST'])
-def clear_files():
-    for fil in session['files']:
-        try:
-            os.remove(fil['temporary_name']) 
-        except FileNotFoundError:
-            pass
-    session['files'] = []
-    return 'Files cleared', 200
-
-
-@app.route('/files/<path:path>', methods=['DELETE'])
-def delete_file(path):
-    os.remove(escape_filename(path))
-    return 'File deleted', 200
-
-
-@app.route("/upload", methods=['PUT'])
-def upload():
-    # WARNING: session['files'].append() is NOT threadsafe.
-    # concurrent file uploads are broken until I rewrite Session
-    # handling to not use https://github.com/fengsp/flask-session.
-
-    fil = request.files['file']
-
-    file_info = save_file(fil, ALLOWED_EXTENSIONS)
-    if file_info:
-        session['files'].append(file_info)
-        log.debug("{} files uploaded".format(len(session['files'])))
-
-        return "File Received: {}".format(file_info['original_name']), 200
-    return "File type '{}' is not allowed.".format(file_info['file_extension']), 401
-
-
-# Start worker thread job and capture its output
-def start_job():
-    ### Create the loggers
+def get_log_handlers():
+    ### Get the loggers
     modules = ['reporting.py','datahandling.py', __name__]#'graphing.py',
     sublogs = [ logging.getLogger(l) for l in modules ]
     [ sublog.setLevel(logging.DEBUG) for sublog in sublogs ]
+    return sublogs
+
+
+def remove_log_handlers(sublogs):
+    [[ sublog.removeHandler(handler) 
+        for handler in sublog.handlers ] 
+            for sublog in sublogs ]
+
+
+def add_log_handlers():
+    sublogs = get_log_handlers()
+    remove_log_handlers(sublogs)
 
     ### Handle output with a StringIO object
     stream = io.StringIO()
     output_loggers[session.sid] = stream
-
-    [[ sublog.removeHandler(handler) for handler in sublog.handlers ] for sublog in sublogs ]
+    
     ch = logging.StreamHandler(stream)
     ch.setLevel(logging.DEBUG)
 
     ### Add a formatter:
-    fmt = logging.Formatter('%(relativeCreated)6d %(threadName)s %(message)s')
-    #fmt = logging.Formatter('%(message)s')
+    fmt = logging.Formatter('[%(created)f] %(threadName)s: %(message)s')
     ch.setFormatter(fmt)
 
     ### Add the handler to the loggers
     [ sublog.addHandler(ch) for sublog in sublogs ]
 
     ### Add another handler for terminal output
-    strh = logging.StreamHandler() 
-    strh.setLevel(logging.DEBUG)
-    [ sublog.addHandler(strh) for sublog in sublogs ]
+    [ default_log_handler(sublog) for sublog in sublogs ]
+    return sublogs
+
+
+# Start worker thread job and capture its output
+def start_job():
+    sublogs = add_log_handlers()
 
     log.info("===============  JOB SETUP  ==================")
     thread = threading.Thread(target=report_worker, args=(session.sid,))
     thread.start()
+
 
 # Report generation worker thread
 def report_worker(sid):
@@ -207,7 +183,38 @@ def report_worker(sid):
         output_loggers[sid].close()
         del output_loggers[sid]
 
-        log.removeHandler(log.handlers[1])
+        remove_log_handlers(get_log_handlers())
+        # Put the default handler back
+        default_log_handler(log)
+
+
+'''
+    Application Routes
+'''
+@app.route('/', methods=['GET'])
+def index():
+    # Set up some session variables so they are not undefined
+    if 'status' not in session:
+        session['status'] = 'ready'
+
+    if 'files' not in session:
+        session['files'] = []
+
+    if 'job' in session.keys():
+        return redirect('/job')
+    return render_template("upload.htm")
+
+
+@app.route("/clear", methods=['GET', 'POST'])
+def clear_files():
+    for fil in session['files']:
+        try:
+            os.remove(fil['temporary_name']) 
+        except FileNotFoundError:
+            pass
+    session['files'] = []
+    return 'Files cleared', 200
+
 
 @app.route('/generate', methods=['POST'])
 def generate_report():
@@ -259,15 +266,34 @@ def get_file():
     return "No file", 400
 
 
+@app.route("/upload", methods=['PUT'])
+def upload():
+    # WARNING: session['files'].append() is NOT threadsafe.
+    # concurrent file uploads are broken until I rewrite Session
+    # handling to not use https://github.com/fengsp/flask-session.
+
+    fil = request.files['file']
+
+    file_info = save_file(fil, ALLOWED_EXTENSIONS)
+    if file_info:
+        session['files'].append(file_info)
+        session.modified = True
+        log.debug("{} files uploaded".format(len(session['files'])))
+
+        return "File Received: {}".format(file_info['original_name']), 200
+    return "File type '{}' is not allowed.".format(file_info['file_extension']), 401
+
+
 @app.route('/status', methods=['GET'])
 def job_status():
-    if 'status' in session and session['status'] is 'running':
+    if 'status' in session and session['status'] == 'running':
         return Response( json.dumps({
                 **dict(session),
-                'output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'No output'
+                'job_output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'No output'
             }), mimetype='application/json')
 
     return Response(json.dumps(dict(session)), mimetype='application/json')
+
 
 @app.route('/cancel', methods=['GET', 'POST'])
 def job_cancel():
@@ -293,9 +319,7 @@ def job_cancel():
 
 
 if __name__ == "__main__":
-    strh = logging.StreamHandler() 
-    strh.setLevel(logging.DEBUG)
-    log.addHandler(strh)
+    default_log_handler(log)
 
     mkdir_p(app.config['UPLOAD_FOLDER'])
     app.run(**flask_options)

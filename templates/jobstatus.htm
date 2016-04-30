@@ -13,6 +13,7 @@
 nav.top-nav a.page-title {line-height: 122px; font-size: 48px; }
 nav.top-nav { height: 122px; }
 .caption {font-size: 1.25rem; font-weight: 300; }
+code.job-output pre { height: 150px }
 </style>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -76,7 +77,11 @@ nav.top-nav { height: 122px; }
     </div></div><!--row, col s12-->
   </div></div><!--card, card-content-->
 
-  <div class="card {% if not status == 'running' %}hide{% endif %}"><div class="card-content">
+  <div class="card blue-grey darken-4 white-text {% if not status == 'running' %}hide{% endif %}"><div class="card-content">
+
+    <div id="upload-progress" class="progress indigo darken-1">
+      <div class="indeterminate blue "></div>
+    </div>
     <div class="row"><div class="col s12">
 
       <span class="card-title">Log output</span>
@@ -84,10 +89,6 @@ nav.top-nav { height: 122px; }
         <pre>{% if job_output %} {{ job_output }} {% else %} No output yet... {% endif %}
         </pre>
       </code>
-
-      <div id="upload-progress" class="progress indigo darken-1">
-        <div class="indeterminate blue "></div>
-      </div>
 <!--
       <p class="right-align">
         <input type="checkbox" id="autoreload" checked="checked" class="filled-in"/> 
@@ -125,21 +126,25 @@ INTERVAL = 2000
 
 $(function(){
   True=true; False=false; 
+  output = $('.job-output pre')
+  output.text( output.text().trim() )
+  output.animate({ scrollTop: output.prop("scrollHeight")}, 2000);
 
   reload = function(){ 
     $.getJSON('/status', function(data) {
       console.log(data) 
 
-      if ("output" in data)
-        $('.job-output pre').text(data.output)
+      if ("job_output" in data) {
+        output.text(data.job_output)
+          .scrollTop(
+            output.prop("scrollHeight")); 
+      }
       if (data.status == 'done'){
         window.location = '/job' 
       }
       timeout = setTimeout(reload, INTERVAL)
     })
   }
-
-  $('.job-output pre').text( $('.job-output pre').text().trim() )
 
   if( {{status == 'running'}} ) {// && $('#autoreload').is(":checked")) {
     timeout = setTimeout(reload, INTERVAL)
