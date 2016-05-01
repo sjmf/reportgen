@@ -11,9 +11,9 @@ import pickle
 import pprint
 
 # Set up logger
-logging.getLogger().setLevel(logging.DEBUG)
 log = logging.getLogger(__name__)
 
+# Create flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
@@ -31,8 +31,6 @@ flask_options = {
     'threaded':True
 }
 
-# Store for stream loggers
-output_loggers = {}
 
 '''
    Auxilliary functions 
@@ -82,55 +80,8 @@ def put_session(session, sid):
     redis.set("session:"+sid, pickle.dumps(session)) 
 
 
-# Log handling for threaded work
-def default_log_handler(log):
-    strh = logging.StreamHandler() 
-    strh.setLevel(logging.DEBUG)
-    log.addHandler(strh)
-
-
-def get_log_handlers():
-    ### Get the loggers
-    modules = ['reporting.py','datahandling.py', __name__]#'graphing.py',
-    sublogs = [ logging.getLogger(l) for l in modules ]
-    [ sublog.setLevel(logging.DEBUG) for sublog in sublogs ]
-    return sublogs
-
-
-def remove_log_handlers(sublogs):
-    [[ sublog.removeHandler(handler) 
-        for handler in sublog.handlers ] 
-            for sublog in sublogs ]
-
-
-def add_log_handlers():
-    sublogs = get_log_handlers()
-    remove_log_handlers(sublogs)
-
-    ### Handle output with a StringIO object
-    stream = io.StringIO()
-    output_loggers[session.sid] = stream
-    
-    ch = logging.StreamHandler(stream)
-    ch.setLevel(logging.DEBUG)
-
-    ### Add a formatter:
-    fmt = logging.Formatter('[%(created)f] %(threadName)s: %(message)s')
-    ch.setFormatter(fmt)
-
-    ### Add the handler to the loggers
-    [ sublog.addHandler(ch) for sublog in sublogs ]
-
-    ### Add another handler for terminal output
-    [ default_log_handler(sublog) for sublog in sublogs ]
-    return sublogs
-
-
-# Start worker thread job and capture its output
+# Start worker thread job
 def start_job():
-    sublogs = add_log_handlers()
-
-    log.info("===============  JOB SETUP  ==================")
     thread = threading.Thread(target=report_worker, args=(session.sid,))
     thread.start()
 
@@ -142,9 +93,8 @@ def report_worker(sid):
         job = session['job']
 
         log.info("=============  STARTING WORKER  ==============")
-        log.debug("Here's my session:")
-        log.debug(pprint.pformat(session))
-
+#        log.debug("Here's my session:")
+#        log.debug(pprint.pformat(session))
         
         # Expand paths to full location on filesystem 
         output_filename = os.path.join(
@@ -169,8 +119,8 @@ def report_worker(sid):
         session['status'] = 'done'
 
     except Exception as e:
-        log.critical("Exception occurred in worker thread")
-        log.critical(sys.exc_info()[0])
+        log.error("Exception occurred in worker thread")
+        log.error(sys.exc_info()[0])
 
         session['status'] = 'error'
         session['generated_pdf'] = None
@@ -178,14 +128,6 @@ def report_worker(sid):
 
     finally:
         put_session(session, sid)
-
-        # Close stream logger
-        output_loggers[sid].close()
-        del output_loggers[sid]
-
-        remove_log_handlers(get_log_handlers())
-        # Put the default handler back
-        default_log_handler(log)
 
 
 '''
@@ -241,13 +183,6 @@ def generate_report():
 
 @app.route('/job', methods=['GET', 'POST'])
 def jobs_page():
-    if 'job' in session:
-        job_output =''
-
-        if session.sid in output_loggers:
-            job_output = output_loggers[session.sid].getvalue()  
-
-        return render_template("jobstatus.htm", **{ **dict(session), 'job_output':job_output }) 
     return render_template("jobstatus.htm", **dict(session)) 
 
 
@@ -286,12 +221,6 @@ def upload():
 
 @app.route('/status', methods=['GET'])
 def job_status():
-    if 'status' in session and session['status'] == 'running':
-        return Response( json.dumps({
-                **dict(session),
-                'job_output': output_loggers[session.sid].getvalue() if session.sid in output_loggers else 'No output'
-            }), mimetype='application/json')
-
     return Response(json.dumps(dict(session)), mimetype='application/json')
 
 
@@ -319,7 +248,15 @@ def job_cancel():
 
 
 if __name__ == "__main__":
-    default_log_handler(log)
+    strh = logging.StreamHandler() 
+    strh.setLevel(logging.DEBUG)
+    log.addHandler(strh)
+    log.setLevel(logging.DEBUG) 
+
+    for l in ['report.py','datahandling.py']:
+        l = logging.getLogger(l)
+        l.propagate = True
+        l.setLevel(logging.DEBUG)
 
     mkdir_p(app.config['UPLOAD_FOLDER'])
     app.run(**flask_options)
