@@ -49,18 +49,20 @@ code.job-output pre { height: 150px }
             <td><strong>{{ job.location }}</strong></td>
             <td>{{ job.description }}</td>
             <td>{{ job.map_file }}</td>
+
+            {% if status == 'done' %}
             <td class="right-align">
               <a id="cancel" class="btn-floating waves-effect waves-light red lighten-1 white-text">
                 <i class="material-icons right">delete</i>
               </a>
             </td>
-            {% if status == 'done' %}
             <td class="right-align">
               <a id="download" href="/download" class="btn-floating waves-effect waves-light blue white-text">
                 <i class="material-icons right">play_for_work</i>
               </a>
             </td>
             {% else %}
+            <td class="right-align">Generating...</td>
             <td class="right-align">
               <div class="preloader-wrapper small active">
                 <div class="spinner-layer spinner-green-only">
