@@ -12,7 +12,7 @@ import logging
 from io import BytesIO
 from os import makedirs
 
-log = logging.getLogger('graphing.py')
+log = logging.getLogger(__name__)
 
 '''
     Statics
@@ -280,6 +280,8 @@ def test():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
     strh = logging.StreamHandler()
     strh.setLevel(logging.DEBUG)
     log.addHandler(strh)

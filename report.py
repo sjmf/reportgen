@@ -8,8 +8,7 @@ import datahandling as dh
 from graphing import plot_weekly, weekly_graph
 
 # Tell me what you're doing, scripts :)
-logging.getLogger().setLevel(logging.DEBUG)
-log = logging.getLogger('report.py')
+log = logging.getLogger(__name__)
 
 template_dir = "templates/"
 
@@ -191,8 +190,6 @@ def read_data(input_datafiles):
     Render template to html and return a string
 '''
 def render_template(weeks, **kwargs):
-
-    # Read in template from file and render with variables
     env = jinja2.Environment( loader=jinja2.FileSystemLoader(searchpath='./templates') )
     return env.get_template('output.htm').render(
         **kwargs,
@@ -201,6 +198,7 @@ def render_template(weeks, **kwargs):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
 
     # Handle arguments
     parser = argparse.ArgumentParser(description='Generate a report PDF from an input BAX datafile')
@@ -238,3 +236,4 @@ if __name__ == "__main__":
     # Run report on the input args
     log.debug(vars(args))
     report(**vars(args))
+

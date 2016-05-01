@@ -8,11 +8,10 @@ import mimetypes
 import subprocess
 import os
 
-# Add error logging
-log = logging.getLogger('datahandling.py')
+log = logging.getLogger(__name__)
 
 # Global variables
-TOOLS_DIR = '/home/sam/baxsw/Release'
+TOOLS_DIR = '/Users/sam/baxsw/Release'
 if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
     raise FileNotFoundError("BuildAX tooling missing")
 
@@ -43,7 +42,7 @@ def readfile(filename):
 '''
 def df_from_bin(filename, decryption_keys=None):
 
-    log.debug("Decoding data file from binary")
+    log.info("Decoding data file from binary")
     proc = subprocess.Popen([
         os.path.join(TOOLS_DIR, "BAXTest"),
         "-Sf",                                           # Source:        file
@@ -246,11 +245,7 @@ def test( datafile ):
 
 if __name__ == "__main__":
     import sys
-
-    strh = logging.StreamHandler()
-    strh.setLevel(logging.DEBUG)
-    log.addHandler(strh)
-    log.setLevel(logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     test( sys.argv[1] )
 
