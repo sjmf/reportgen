@@ -26,6 +26,8 @@ SESSION_TYPE = 'redis'
 app.config.from_object(__name__)
 Session(app)
 
+redis = Redis()
+
 flask_options = {
     'host':'0.0.0.0',
     'threaded':True
@@ -71,17 +73,18 @@ def save_file(fil, extensions_list):
 
 # Override get_session directly from Redis (for thread use)
 def get_session(sid):
-    redis = Redis()
     return pickle.loads(redis.get("session:"+sid))
 
 
 def put_session(session, sid):
-    redis = Redis()
     redis.set("session:"+sid, pickle.dumps(session)) 
 
 
 # Start worker thread job
-def start_job():
+def start_job():   
+    # Must write session back first! There is a race condition between
+    # the session being written on route return and the thread starting!
+    put_session(session, session.sid)
     thread = threading.Thread(target=report_worker, args=(session.sid,))
     thread.start()
 
@@ -104,13 +107,13 @@ def report_worker(sid):
         # Make list of input datafiles
         input_datafiles = [
                 os.path.join( app.config['UPLOAD_FOLDER'], f['temporary_name'])
-            for f in session['files'] ]
+            for f in get_files() ]
 
         report.report(input_datafiles, output_filename, 
                     **{**job, 'pdf':True, 'htm':False})
-        
+
         log.info("=============  WORKER FINISHED  ==============")
-        
+
         # Put generated pdf in the session last thing before finally
 
         # Update session
@@ -139,23 +142,9 @@ def index():
     if 'status' not in session:
         session['status'] = 'ready'
 
-    if 'files' not in session:
-        session['files'] = []
-
     if 'job' in session.keys():
         return redirect('/job')
     return render_template("upload.htm")
-
-
-@app.route("/clear", methods=['GET', 'POST'])
-def clear_files():
-    for fil in session['files']:
-        try:
-            os.remove(fil['temporary_name']) 
-        except FileNotFoundError:
-            pass
-    session['files'] = []
-    return 'Files cleared', 200
 
 
 @app.route('/generate', methods=['POST'])
@@ -177,7 +166,6 @@ def generate_report():
 
         start_job()
         session['status'] = 'running'
-    
     return redirect('/job')
 
 
@@ -201,27 +189,80 @@ def get_file():
     return "No file", 400
 
 
+# Store files in redis by keys files:sid:filename 
+def fkey(sid, filename):
+    return "files:"+sid+":"+filename
+
+
+def list_fkeys(sid=None):
+    fkeys = []
+    cursor = 0
+    while True:
+        cursor, keys = redis.scan(cursor, match=fkey(session.sid, '*'))
+        fkeys.extend(keys)
+        log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
+        if cursor == 0:
+            return fkeys
+
+
+def get_files():
+    return sorted( [
+            { k.decode('utf-8') : v.decode('utf-8') for k,v in j.items() } 
+                for j in [ redis.hgetall(key) for key in list_fkeys() ]
+        ], 
+        key=lambda x: x['original_name'])
+
+
+def add_file(file_info):
+    key = fkey(session.sid, file_info['original_name'])
+    log.debug(key)
+    if not redis.exists(key):
+        redis.hmset(key, file_info)
+    else:
+        raise KeyError("File already exists!")
+
+
+def count_files():
+    return len(list_fkeys())
+
+
+# Atomic multikey delete: http://stackoverflow.com/a/16974060/1681205
+def delete_files():
+    return redis.eval("return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, fkey(session.sid, '*'))
+
+
+@app.route("/clear", methods=['GET', 'POST'])
+def clear_files():
+    for fil in get_files():
+        try:
+            os.remove(fil['temporary_name']) 
+        except FileNotFoundError:
+            pass
+    delete_files()
+    return 'Files cleared', 200
+
+
 @app.route("/upload", methods=['PUT'])
 def upload():
-    # WARNING: session['files'].append() is NOT threadsafe.
-    # concurrent file uploads are broken until I rewrite Session
-    # handling to not use https://github.com/fengsp/flask-session.
-
     fil = request.files['file']
-
     file_info = save_file(fil, ALLOWED_EXTENSIONS)
-    if file_info:
-        session['files'].append(file_info)
-        session.modified = True
-        log.debug("{} files uploaded".format(len(session['files'])))
+    try:
+        if file_info:
+            add_file(file_info)
+            log.debug("{} files uploaded".format(count_files()))
 
-        return "File Received: {}".format(file_info['original_name']), 200
-    return "File type '{}' is not allowed.".format(file_info['file_extension']), 401
+            return "File Received: {}".format(file_info['original_name']), 200
+    except KeyError as e:
+        return "File '{}' already uploaded!".format(file_info['original_name']), 400
+    return "File type '{}' rejected".format(file_info['file_extension']), 400
 
 
 @app.route('/status', methods=['GET'])
 def job_status():
-    return Response(json.dumps(dict(session)), mimetype='application/json')
+    return Response(json.dumps({
+            **dict(session),
+            'files' : get_files()
+        }), mimetype='application/json')
 
 
 @app.route('/cancel', methods=['GET', 'POST'])
@@ -240,7 +281,9 @@ def job_cancel():
             if 'generated_pdf' in session:
                 del session['generated_pdf']
             del session['job']
-
+        
+        if request.args.get('redirect'):
+            return redirect('/')
         return Response(json.dumps({ 'cancel':'ok' }), 200 
                 , mimetype='application/json')
     return Response(json.dumps({ 'cancel':'no-job' }), 200 

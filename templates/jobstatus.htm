@@ -92,18 +92,21 @@ code.job-output pre { height: 150px }
   </div></div><!--card, card-content-->
 
 {% endif %}
-  <div id="output-card" class="card {% if status == 'running' %}hide{% endif %}"><div class="card-content">
+  <div id="output-card" class="card {% if job is defined and status == 'running' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
       <span class="card-title">Status</span>
       <div class="job-output caption">
       {% if status == 'done' %}
          Job complete. Download file above or remove it to generate another. 
       {% elif status == 'error' %}
-      <p class="red-text">
-        An error occurred. Please <a href="mailto:buildax@ncl.ac.uk">report it</a> so that we can fix it, or try again later. :-(
-      </p>
-      <br/>
-      <p><a class="red-text" href="/cancel">Cancel job</a></p>
+          <p class="red-text">
+            An error occurred. Please <a href="mailto:buildax@ncl.ac.uk">report it</a>
+            so that we can fix it, or <a href="/">try again</a> later. :-(
+          </p>
+          <br/>
+          {% if job is defined %}
+          <p><a class="btn red white-text" href="/cancel?redirect=1">Cancel job</a></p>
+          {% endif %}
       {% else %}
           No job running. Please submit one <a href='/'>here</a>.
       {% endif %}
