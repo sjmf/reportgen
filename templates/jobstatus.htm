@@ -29,8 +29,8 @@ code.job-output pre { height: 150px }
 <div class="container"><div class="section">
 
 <div class="row"><div class="col s12">
-{% if job is defined %}  
-  <div class="card {% if not status == 'running' and not status == 'done' %}hide{% endif %}"><div class="card-content">
+{% if job %}  
+  <div class="card {% if not job['status'] == 'running' and not job['status'] == 'done' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
 
       <span class="card-title">Report job</span>
@@ -50,7 +50,7 @@ code.job-output pre { height: 150px }
             <td>{{ job.description }}</td>
             <td>{{ job.map_file }}</td>
 
-            {% if status == 'done' %}
+            {% if job['status'] == 'done' %}
             <td class="right-align">
               <a id="cancel" class="btn-floating waves-effect waves-light red lighten-1 white-text">
                 <i class="material-icons right">delete</i>
@@ -80,6 +80,9 @@ code.job-output pre { height: 150px }
           </tr>
         </tbody>
       </table>
+      {% if job['status'] == 'running' %}
+      <p><em> Jobs make take up to a minute per 10MB of data uploaded. Please be patient! </em></p>
+      {% endif %}
     </div></div><!--row, col s12-->
 
     <div class="row"><div class="col s12">
@@ -92,21 +95,21 @@ code.job-output pre { height: 150px }
   </div></div><!--card, card-content-->
 
 {% endif %}
-  <div id="output-card" class="card {% if job is defined and status == 'running' %}hide{% endif %}"><div class="card-content">
+  <div id="output-card" class="card {% if job is defined and job['status'] == 'running' %}hide{% endif %}"><div class="card-content">
     <div class="row"><div class="col s12">
       <span class="card-title">Status</span>
       <div class="job-output caption">
-      {% if status == 'done' %}
-         Job complete. Download file above or remove it to generate another. 
-      {% elif status == 'error' %}
+      {% if job %} 
+        {% if job['status'] == 'done' %}
+          Job complete. Download file above or remove it to generate another. 
+        {% elif job['status'] == 'error' %}
           <p class="red-text">
             An error occurred. Please <a href="mailto:buildax@ncl.ac.uk">report it</a>
             so that we can fix it, or <a href="/">try again</a> later. :-(
           </p>
           <br/>
-          {% if job is defined %}
           <p><a class="btn red white-text" href="/cancel?redirect=1">Cancel job</a></p>
-          {% endif %}
+        {% endif %}
       {% else %}
           No job running. Please submit one <a href='/'>here</a>.
       {% endif %}
@@ -131,14 +134,14 @@ $(function(){
     $.getJSON('/status', function(data) {
       console.log(data) 
 
-      if (data.status == 'done'){
+      if (data.job.status == 'done'){
         window.location = '/job' 
       }
       timeout = setTimeout(reload, INTERVAL)
     })
   }
 
-  if( {{status == 'running'}} ) {// && $('#autoreload').is(":checked")) {
+  if( {{ job and job['status'] == 'running' }} ) {// && $('#autoreload').is(":checked")) {
     timeout = setTimeout(reload, INTERVAL)
   }
 

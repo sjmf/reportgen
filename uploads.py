@@ -21,8 +21,9 @@ app.config['DEBUG'] = True
 
 ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
 IMAGE_EXTENSIONS = set(['jpg', 'png', 'svg', 'gif'])
-SESSION_TYPE = 'redis'
 
+# Flask-Session module setup
+SESSION_TYPE = 'redis'
 app.config.from_object(__name__)
 Session(app)
 
@@ -71,33 +72,19 @@ def save_file(fil, extensions_list):
     return None
 
 
-# Override get_session directly from Redis (for thread use)
-def get_session(sid):
-    return pickle.loads(redis.get("session:"+sid))
-
-
-def put_session(session, sid):
-    redis.set("session:"+sid, pickle.dumps(session)) 
-
 
 # Start worker thread job
-def start_job():   
-    # Must write session back first! There is a race condition between
-    # the session being written on route return and the thread starting!
-    put_session(session, session.sid)
-    thread = threading.Thread(target=report_worker, args=(session.sid,))
+def start_job(sid):   
+    thread = threading.Thread(target=report_worker, args=(sid,))
     thread.start()
 
 
 # Report generation worker thread
 def report_worker(sid):
     try:
-        session = get_session(sid)
-        job = session['job']
+        job = get_job(sid) 
 
         log.info("=============  STARTING WORKER  ==============")
-#        log.debug("Here's my session:")
-#        log.debug(pprint.pformat(session))
         
         # Expand paths to full location on filesystem 
         output_filename = os.path.join(
@@ -107,30 +94,24 @@ def report_worker(sid):
         # Make list of input datafiles
         input_datafiles = [
                 os.path.join( app.config['UPLOAD_FOLDER'], f['temporary_name'])
-            for f in get_files() ]
+            for f in get_files(sid) ]
 
         report.report(input_datafiles, output_filename, 
                     **{**job, 'pdf':True, 'htm':False})
 
         log.info("=============  WORKER FINISHED  ==============")
 
-        # Put generated pdf in the session last thing before finally
-
-        # Update session
-        session = get_session(sid)
-        session['generated_pdf'] = output_filename
-        session['status'] = 'done'
+        # Update finished job 
+        upd_job(sid, 'generated_pdf', output_filename)
+        upd_job(sid, 'status', 'done')
 
     except Exception as e:
         log.error("Exception occurred in worker thread")
         log.error(sys.exc_info()[0])
 
-        session['status'] = 'error'
-        session['generated_pdf'] = None
-        raise
-
-    finally:
-        put_session(session, sid)
+        upd_job(sid, 'status', 'error')
+        upd_job(sid, 'generated_pdf', None)
+        raise e
 
 
 '''
@@ -138,83 +119,104 @@ def report_worker(sid):
 '''
 @app.route('/', methods=['GET'])
 def index():
-    # Set up some session variables so they are not undefined
-    if 'status' not in session:
-        session['status'] = 'ready'
-
-    if 'job' in session.keys():
+    log.debug(session.sid)
+    if has_job(session.sid):
         return redirect('/job')
     return render_template("upload.htm")
 
 
 @app.route('/generate', methods=['POST'])
 def generate_report():
-    if 'job' not in session:
-        session['job'] = {
+    if not has_job(session.sid):
+        job = {
             'location'     : escape(request.form['location']),
             'description'  : escape(request.form['description']),
-            'sid'          : session.sid,
+            'status'       : 'running',
         }
+        # Put job quickly to avoid races
+        put_job(session.sid, job)
 
         if request.files:
             fil = next(iter(request.files.values()))
             file_info = save_file(fil, IMAGE_EXTENSIONS)
-            session['job'].update({
+            job.update({
                 'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
                 'map_file'     : escape_filename(file_info['original_name']),
             })
 
-        start_job()
-        session['status'] = 'running'
+        put_job(session.sid, job)
+        start_job(session.sid)
     return redirect('/job')
 
 
 @app.route('/job', methods=['GET', 'POST'])
 def jobs_page():
-    return render_template("jobstatus.htm", **dict(session)) 
+    return render_template("jobstatus.htm", **get_template_variables() )
 
 
 @app.route('/download', methods=['GET'])
 def get_file():
-    if 'generated_pdf' in session:
+    job = get_job(session.sid)
+    if 'generated_pdf' in job:
         return send_from_directory(
             app.config['UPLOAD_FOLDER'], 
-            session['generated_pdf'].split('/')[-1],
+            job['generated_pdf'].split('/')[-1],
             as_attachment=True,
             attachment_filename=escape_filename(
-                (session['job']['location'] if session['job']['location'] else 'output')
+                (job['location'] if job['location'] else 'output')
                     +'.pdf'),
             mimetype='application/pdf')
 
     return "No file", 400
 
 
-# Store files in redis by keys files:sid:filename 
-def fkey(sid, filename):
-    return "files:"+sid+":"+filename
+'''
+    Utility methods 
+'''
+# Store files in redis by keys prefix:sid:filename 
+def rkey(prefix, sid, suffix=None):
+    return prefix + ":" + sid + (":" + suffix if suffix else '')
 
+def dict_utf8(j):
+    return { k.decode('utf-8') : v.decode('utf-8') for k,v in j.items() } 
 
-def list_fkeys(sid=None):
+def get_template_variables():
+    tpl = dict(session)
+    job = get_job(session.sid)
+    fil = get_files(session.sid)
+
+    if job:
+        tpl['job'] = job
+    if fil:
+        tpl['files'] = fil
+    
+    return tpl
+
+''' 
+    File handling
+'''
+def list_fkeys(sid='*'):
     fkeys = []
     cursor = 0
+
     while True:
-        cursor, keys = redis.scan(cursor, match=fkey(session.sid, '*'))
+        cursor, keys = redis.scan(cursor, match=rkey('files', sid, '*'))
         fkeys.extend(keys)
         log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
         if cursor == 0:
             return fkeys
 
 
-def get_files():
+def get_files(sid):
     return sorted( [
-            { k.decode('utf-8') : v.decode('utf-8') for k,v in j.items() } 
-                for j in [ redis.hgetall(key) for key in list_fkeys() ]
+            dict_utf8(j)     
+                for j in [ redis.hgetall(key) for key in list_fkeys(sid) ]
         ], 
         key=lambda x: x['original_name'])
 
 
 def add_file(file_info):
-    key = fkey(session.sid, file_info['original_name'])
+    key = rkey('files', session.sid, file_info['original_name'])
     log.debug(key)
     if not redis.exists(key):
         redis.hmset(key, file_info)
@@ -228,12 +230,33 @@ def count_files():
 
 # Atomic multikey delete: http://stackoverflow.com/a/16974060/1681205
 def delete_files():
-    return redis.eval("return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, fkey(session.sid, '*'))
+    return redis.eval("return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, rkey('files', session.sid, '*'))
+
+'''
+    Job handling
+'''
+def get_job(sid):
+    return dict_utf8(redis.hgetall( rkey('job',sid) ))
+
+def put_job(sid,job):
+    return redis.hmset(rkey('job', sid), job)
+
+def upd_job(sid, key, value):
+    return redis.hset( rkey('job', sid), key, value)
+
+def has_job(sid):
+    return redis.exists( rkey('job', sid) )
+
+def rem_job(sid):
+    return redis.delete( rkey('job', sid) )
 
 
+'''
+    API Routes
+'''
 @app.route("/clear", methods=['GET', 'POST'])
 def clear_files():
-    for fil in get_files():
+    for fil in get_files(session.sid):
         try:
             os.remove(fil['temporary_name']) 
         except FileNotFoundError:
@@ -259,29 +282,25 @@ def upload():
 
 @app.route('/status', methods=['GET'])
 def job_status():
-    return Response(json.dumps({
-            **dict(session),
-            'files' : get_files()
-        }), mimetype='application/json')
+    return Response(json.dumps( get_template_variables() ), mimetype='application/json')
 
 
 @app.route('/cancel', methods=['GET', 'POST'])
 def job_cancel():
-    if 'job' in session:
+    if has_job(session.sid):
         ### Remove files
+        job = get_job(session.sid)
         try:
-            if 'map_file' in session:
-                os.unlink(session['job']['map_filename'])
-            if 'generated_pdf' in session:
-                os.unlink(session['generated_pdf'])
+            if 'map_file' in job:
+                os.unlink(job['map_filename'])
+            if 'generated_pdf' in job:
+                os.unlink(job['generated_pdf'])
         except:
             log.warning("Exception in cancel")
             pass
         finally:
-            if 'generated_pdf' in session:
-                del session['generated_pdf']
-            del session['job']
-        
+            rem_job(session.sid)
+
         if request.args.get('redirect'):
             return redirect('/')
         return Response(json.dumps({ 'cancel':'ok' }), 200 
