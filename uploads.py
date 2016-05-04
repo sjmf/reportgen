@@ -20,7 +20,8 @@ app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
 ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
 IMAGE_EXTENSIONS = set(['jpg', 'png', 'svg', 'gif'])
 
-redis = Redis(host=os.environ.get('REDIS_HOSTNAME', 'localhost'))
+host = os.environ.get('REDIS_URL', '://' + os.environ.get('REDIS_HOSTNAME', 'localhost'))
+redis = Redis(host=(host.split(':')[1][2:]))
 
 # Flask-Session module setup
 SESSION_TYPE = 'redis'
