@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # coding: utf-8
 import io, os, errno, re, json, tempfile, logging, threading, sys
-import report
 from flask import Flask, current_app, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
 from flask.ext.session import Session
 from werkzeug import secure_filename
 from time import sleep
 from redis import Redis
-import pickle
-import pprint
+import report
 
 # Set up logger
 log = logging.getLogger(__name__)
