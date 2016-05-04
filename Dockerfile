@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y supervisor \
 COPY conf/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Install requirements
-COPY config/requirements.txt .
+COPY conf/requirements.txt .
 RUN pip install -r requirements.txt
 
 # Copy rest of app environment
@@ -42,5 +42,6 @@ COPY . /app
 WORKDIR /app
 
 ENV BAX_TOOLS_DIR /app/bin
+ENV REDIS_HOSTNAME redis
 
 CMD ["/usr/bin/supervisord"]
