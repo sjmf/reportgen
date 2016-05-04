@@ -15,17 +15,18 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
-app.config['DEBUG'] = True
+#app.config['DEBUG'] = True
 
 ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
 IMAGE_EXTENSIONS = set(['jpg', 'png', 'svg', 'gif'])
 
+redis = Redis(host=os.environ.get('REDIS_HOSTNAME', 'localhost'))
+
 # Flask-Session module setup
 SESSION_TYPE = 'redis'
+SESSION_REDIS = redis 
 app.config.from_object(__name__)
 Session(app)
-
-redis = Redis()
 
 flask_options = {
     'host':'0.0.0.0',
