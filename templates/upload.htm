@@ -258,7 +258,11 @@ $(function(){
         contentType: false,
         processData: false,
         type: 'POST',
-        success: function(data){
+//        success: function(data){
+//          // Navigate onwards
+//          window.location.href = "/job";
+//        },
+        complete: function(data){
           // Navigate onwards
           window.location.href = "/job";
         }

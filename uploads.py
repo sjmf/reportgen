@@ -56,6 +56,8 @@ def save_file(fil, extensions_list):
     temporary_name = next(tempfile._get_candidate_names()) +'.'+ file_extension
 
     if fil and file_extension in extensions_list:
+        # Check the folder exists
+        mkdir_p(app.config['UPLOAD_FOLDER'])
         # Put it on the disk:
         path = os.path.join(app.config['UPLOAD_FOLDER'], temporary_name)
         fil.save(path)
@@ -128,24 +130,31 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_report():
     if not has_job(session.sid):
-        job = {
-            'location'     : escape(request.form['location']),
-            'description'  : escape(request.form['description']),
-            'status'       : 'running',
-        }
-        # Put job quickly to avoid races
-        put_job(session.sid, job)
+        try:
+            job = {
+                'location'     : escape(request.form['location']),
+                'description'  : escape(request.form['description']),
+                'status'       : 'running',
+            }
+            put_job(session.sid, job)    # Put job quickly to avoid races
 
-        if request.files:
-            fil = next(iter(request.files.values()))
-            file_info = save_file(fil, IMAGE_EXTENSIONS)
-            job.update({
-                'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
-                'map_file'     : escape_filename(file_info['original_name']),
-            })
+            if request.files:
+                fil = next(iter(request.files.values()))
+                file_info = save_file(fil, IMAGE_EXTENSIONS)
+                job.update({
+                    'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
+                    'map_file'     : escape_filename(file_info['original_name']),
+                })
 
-        put_job(session.sid, job)
-        start_job(session.sid)
+        except Exception as e:
+            if job:
+                job['status'] = 'error'
+                put_job(session.sid, job)
+            raise e
+        else:
+            put_job(session.sid, job)
+            start_job(session.sid)
+
     return redirect('/job')
 
 
@@ -168,6 +177,7 @@ def get_file():
             mimetype='application/pdf')
 
     return "No file", 400
+
 
 
 '''
@@ -202,7 +212,7 @@ def list_fkeys(sid='*'):
     while True:
         cursor, keys = redis.scan(cursor, match=rkey('files', sid, '*'))
         fkeys.extend(keys)
-        log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
+        #log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
         if cursor == 0:
             return fkeys
 
@@ -320,6 +330,5 @@ if __name__ == "__main__":
         l.propagate = True
         l.setLevel(logging.DEBUG)
 
-    mkdir_p(app.config['UPLOAD_FOLDER'])
     app.run(**flask_options)
 

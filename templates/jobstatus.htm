@@ -81,7 +81,7 @@ code.job-output pre { height: 150px }
         </tbody>
       </table>
       {% if job['status'] == 'running' %}
-      <p><em> Jobs make take up to a minute per 10MB of data uploaded. Please be patient! </em></p>
+      <p><em> Jobs may take up to a minute per 10MB of data uploaded. Please be patient! </em></p>
       {% endif %}
     </div></div><!--row, col s12-->
 
@@ -131,14 +131,19 @@ $(function(){
   output.animate({ scrollTop: output.prop("scrollHeight")}, 2000);
 
   reload = function(){ 
-    $.getJSON('/status', function(data) {
-      console.log(data) 
+      $.ajax({
+        url: '/status', 
+        dataType: "json",
+        success: function(data) {
+          console.log(data) 
 
-      if (data.job.status == 'done'){
-        window.location = '/job' 
-      }
-      timeout = setTimeout(reload, INTERVAL)
-    })
+          if (data.job.status == 'done'){
+            window.location = '/job' 
+          }
+          timeout = setTimeout(reload, INTERVAL)
+        },
+        timeout: 1500
+      })
   }
 
   if( {{ job and job['status'] == 'running' }} ) {// && $('#autoreload').is(":checked")) {
