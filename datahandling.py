@@ -11,9 +11,9 @@ import os
 log = logging.getLogger(__name__)
 
 # Global variables
-TOOLS_DIR = '/Users/sam/baxsw/Release'
+TOOLS_DIR = os.environ.get('BAX_TOOLS_DIR', os.path.join(os.environ['HOME'], 'baxsw/Release') )
 if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
-    raise FileNotFoundError("BuildAX tooling missing")
+    raise FileNotFoundError("BuildAX tooling missing in {}".format(TOOLS_DIR))
 
 # STFU SettingWithCopyWarning
 #pd.set_option('chained_assignment', None)
