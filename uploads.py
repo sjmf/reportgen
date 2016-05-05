@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Set up blueprint
-APPLICATION_ROOT = os.environ.get('PROXY_PATH', '')
+APPLICATION_ROOT = os.environ.get('PROXY_PATH', '/').strip() or '/'
 bax = Blueprint('bax', __name__, template_folder='templates')
 # Look at end of file for where this blueprint is actually registered to the app
 
