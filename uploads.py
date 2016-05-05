@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
+app.config['APPLICATION_ROOT'] = os.environ.get('FLASK_APPLICATION_ROOT', '/')
 #app.config['DEBUG'] = True
 
 ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
