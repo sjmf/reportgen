@@ -21,7 +21,7 @@ code.job-output pre { height: 150px }
 
 <nav class="top-nav indigo darken-1">
   <div class="container">
-    <div class="nav-wrapper"> <a class="page-title">BAX Report Generator</a> </div>
+    <div class="nav-wrapper"> <a class="page-title" href="{{ url_for('index') }}">BAX Report Generator</a> </div>
   </div>
 </nav>
 
@@ -57,7 +57,7 @@ code.job-output pre { height: 150px }
               </a>
             </td>
             <td class="right-align">
-              <a id="download" href="/download" class="btn-floating waves-effect waves-light blue white-text">
+                <a id="download" href="{{ url_for('download') }}" class="btn-floating waves-effect waves-light blue white-text">
                 <i class="material-icons right">play_for_work</i>
               </a>
             </td>
@@ -105,13 +105,13 @@ code.job-output pre { height: 150px }
         {% elif job['status'] == 'error' %}
           <p class="red-text">
             An error occurred. Please <a href="mailto:buildax@ncl.ac.uk">report it</a>
-            so that we can fix it, or <a href="/">try again</a> later. :-(
+            so that we can fix it, or <a href="{{ url_for('index') }}">try again</a> later. :-(
           </p>
           <br/>
-          <p><a class="btn red white-text" href="/cancel?redirect=1">Cancel job</a></p>
+          <p><a class="btn red white-text" href="{{ url_for('cancel', redirect=1) }}">Cancel job</a></p>
         {% endif %}
       {% else %}
-          No job running. Please submit one <a href='/'>here</a>.
+        No job running. Please submit one <a href="{{ url_for('index') }}">here</a>.
       {% endif %}
       </div>
     </div></div><!--row, col s12-->
@@ -132,13 +132,13 @@ $(function(){
 
   reload = function(){ 
       $.ajax({
-        url: '/status', 
+        url: "{{ url_for('status') }}",
         dataType: "json",
         success: function(data) {
           console.log(data) 
 
           if (data.job.status == 'done'){
-            window.location = '/job' 
+            window.location = "{{ url_for('job') }}"
           }
           timeout = setTimeout(reload, INTERVAL)
         },
@@ -161,9 +161,9 @@ $(function(){
   })
 
   $("#cancel").click(function(e){  
-    $.post('/cancel', function(files) {
+    $.post("{{ url_for('cancel') }}", function(files) {
       console.log("Job cancelled")
-      window.location = '/' 
+      window.location = "{{ url_for('index') }}"
     })
   })
 })
