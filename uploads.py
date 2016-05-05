@@ -75,13 +75,6 @@ def save_file(fil, extensions_list):
     return None
 
 
-
-# Start worker thread job
-def start_job(sid):   
-    thread = threading.Thread(target=report_worker, args=(sid,))
-    thread.start()
-
-
 # Report generation worker thread
 def report_worker(sid):
     try:
@@ -117,73 +110,6 @@ def report_worker(sid):
         raise e
 
 
-'''
-    Application Routes
-'''
-@app.route('/', methods=['GET'])
-def index():
-    log.debug(session.sid)
-    if has_job(session.sid):
-        return redirect('/job')
-    return render_template("upload.htm")
-
-
-@app.route('/generate', methods=['POST'])
-def generate_report():
-    if not has_job(session.sid):
-        try:
-            job = {
-                'location'     : escape(request.form['location']),
-                'description'  : escape(request.form['description']),
-                'status'       : 'running',
-            }
-            put_job(session.sid, job)    # Put job quickly to avoid races
-
-            if request.files:
-                fil = next(iter(request.files.values()))
-                file_info = save_file(fil, IMAGE_EXTENSIONS)
-                job.update({
-                    'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
-                    'map_file'     : escape_filename(file_info['original_name']),
-                })
-
-        except Exception as e:
-            if job:
-                job['status'] = 'error'
-                put_job(session.sid, job)
-            raise e
-        else:
-            put_job(session.sid, job)
-            start_job(session.sid)
-
-    return redirect('/job')
-
-
-@app.route('/job', methods=['GET', 'POST'])
-def jobs_page():
-    return render_template("jobstatus.htm", **get_template_variables() )
-
-
-@app.route('/download', methods=['GET'])
-def get_file():
-    job = get_job(session.sid)
-    if 'generated_pdf' in job:
-        return send_from_directory(
-            app.config['UPLOAD_FOLDER'], 
-            job['generated_pdf'].split('/')[-1],
-            as_attachment=True,
-            attachment_filename=escape_filename(
-                (job['location'] if job['location'] else 'output')
-                    +'.pdf'),
-            mimetype='application/pdf')
-
-    return "No file", 400
-
-
-
-'''
-    Utility methods 
-'''
 # Store files in redis by keys prefix:sid:filename 
 def rkey(prefix, sid, suffix=None):
     return prefix + ":" + sid + (":" + suffix if suffix else '')
@@ -263,10 +189,74 @@ def rem_job(sid):
 
 
 '''
+    Application Routes
+'''
+@app.route('/', methods=['GET'])
+def index():
+    log.debug(session.sid)
+    if has_job(session.sid):
+        return redirect('/job')
+    return render_template("upload.htm")
+
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    if not has_job(session.sid):
+        try:
+            job = {
+                'location'     : escape(request.form['location']),
+                'description'  : escape(request.form['description']),
+                'status'       : 'running',
+            }
+            put_job(session.sid, job)    # Put job quickly to avoid races
+
+            if request.files:
+                fil = next(iter(request.files.values()))
+                file_info = save_file(fil, IMAGE_EXTENSIONS)
+                job.update({
+                    'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
+                    'map_file'     : escape_filename(file_info['original_name']),
+                })
+
+        except Exception as e:
+            if job:
+                job['status'] = 'error'
+                put_job(session.sid, job)
+            raise e
+        else:
+            put_job(session.sid, job)
+            thread = threading.Thread(target=report_worker, args=(session.sid,))
+            thread.start()
+
+    return redirect('/job')
+
+
+@app.route('/job', methods=['GET', 'POST'])
+def job():
+    return render_template("jobstatus.htm", **get_template_variables() )
+
+
+@app.route('/download', methods=['GET'])
+def download():
+    job = get_job(session.sid)
+    if 'generated_pdf' in job:
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'], 
+            job['generated_pdf'].split('/')[-1],
+            as_attachment=True,
+            attachment_filename=escape_filename(
+                (job['location'] if job['location'] else 'output')
+                    +'.pdf'),
+            mimetype='application/pdf')
+
+    return "No file", 400
+
+
+'''
     API Routes
 '''
 @app.route("/clear", methods=['GET', 'POST'])
-def clear_files():
+def clear():
     for fil in get_files(session.sid):
         try:
             os.remove(fil['temporary_name']) 
@@ -292,12 +282,12 @@ def upload():
 
 
 @app.route('/status', methods=['GET'])
-def job_status():
+def status():
     return Response(json.dumps( get_template_variables() ), mimetype='application/json')
 
 
 @app.route('/cancel', methods=['GET', 'POST'])
-def job_cancel():
+def cancel():
     if has_job(session.sid):
         ### Remove files
         job = get_job(session.sid)
