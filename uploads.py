@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 import io, os, errno, re, json, tempfile, logging, threading, sys
-from flask import Flask, current_app, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
+from flask import Flask, Blueprint, current_app, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
 from flask.ext.session import Session
 from werkzeug import secure_filename
 from time import sleep
@@ -13,10 +13,16 @@ log = logging.getLogger(__name__)
 
 # Create flask app
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
-app.config['APPLICATION_ROOT'] = os.environ.get('FLASK_APPLICATION_ROOT', '/')
-#app.config['DEBUG'] = True
+
+# Set up blueprint
+prefix = os.environ.get('PROXY_PATH', '')
+bax = Blueprint('bax', __name__, template_folder='templates')
+# Look at end of file for where this blueprint is actually registered to the app
+
+# App options (loaded from_object)
+UPLOAD_FOLDER = '/tmp/uploads'
+MAX_CONTENT_LENGTH = 512 * 1024 * 1024
+DEBUG = True
 
 ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
 IMAGE_EXTENSIONS = set(['jpg', 'png', 'svg', 'gif'])
@@ -191,7 +197,7 @@ def rem_job(sid):
 '''
     Application Routes
 '''
-@app.route('/', methods=['GET'])
+@bax.route('/', methods=['GET'])
 def index():
     log.debug(session.sid)
     if has_job(session.sid):
@@ -199,7 +205,7 @@ def index():
     return render_template("upload.htm")
 
 
-@app.route('/generate', methods=['POST'])
+@bax.route('/generate', methods=['POST'])
 def generate():
     if not has_job(session.sid):
         try:
@@ -231,12 +237,12 @@ def generate():
     return redirect('/job')
 
 
-@app.route('/job', methods=['GET', 'POST'])
+@bax.route('/job', methods=['GET', 'POST'])
 def job():
     return render_template("jobstatus.htm", **get_template_variables() )
 
 
-@app.route('/download', methods=['GET'])
+@bax.route('/download', methods=['GET'])
 def download():
     job = get_job(session.sid)
     if 'generated_pdf' in job:
@@ -255,7 +261,7 @@ def download():
 '''
     API Routes
 '''
-@app.route("/clear", methods=['GET', 'POST'])
+@bax.route("/clear", methods=['GET', 'POST'])
 def clear():
     for fil in get_files(session.sid):
         try:
@@ -266,7 +272,7 @@ def clear():
     return 'Files cleared', 200
 
 
-@app.route("/upload", methods=['PUT'])
+@bax.route("/upload", methods=['PUT'])
 def upload():
     fil = request.files['file']
     file_info = save_file(fil, ALLOWED_EXTENSIONS)
@@ -281,12 +287,12 @@ def upload():
     return "File type '{}' rejected".format(file_info['file_extension']), 400
 
 
-@app.route('/status', methods=['GET'])
+@bax.route('/status', methods=['GET'])
 def status():
     return Response(json.dumps( get_template_variables() ), mimetype='application/json')
 
 
-@app.route('/cancel', methods=['GET', 'POST'])
+@bax.route('/cancel', methods=['GET', 'POST'])
 def cancel():
     if has_job(session.sid):
         ### Remove files
@@ -310,6 +316,12 @@ def cancel():
             , mimetype='application/json')
 
 
+'''
+    Register blueprint to the app
+'''
+app.register_blueprint(bax, url_prefix=prefix)
+
+# Main. Does not run when running with WSGI
 if __name__ == "__main__":
     strh = logging.StreamHandler() 
     strh.setLevel(logging.DEBUG)

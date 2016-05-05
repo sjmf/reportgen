@@ -37,7 +37,7 @@ dt:after { content: ": "; }
 
 <nav class="top-nav indigo darken-1">
   <div class="container">
-      <div class="nav-wrapper"> <a class="page-title" href="{{ url_for('index') }}">BAX Report Generator</a> </div>
+      <div class="nav-wrapper"> <a class="page-title" href="{{ url_for('.index') }}">BAX Report Generator</a> </div>
   </div>
 </nav>
 
@@ -59,7 +59,7 @@ dt:after { content: ": "; }
       <span class="card-title">Upload data files</span>
       </div></div>
 
-      <form action="{{ url_for("upload") }}" class="dropzone" id="file-drop">
+      <form action="{{ url_for('.upload') }}" class="dropzone" id="file-drop">
       <div class="dz-message needsclick">
         Drop files here or click to upload.<br>
         <span class="note needsclick">(Accepts types: <strong>.bin .bax .csv .txt)</strong></span>
@@ -84,7 +84,7 @@ dt:after { content: ": "; }
   <div class="card"><div class="card-content">
     <span class="card-title">Metadata for your report</span>
 
-    <form id="form-metadata" method="post" action="{{ url_for("generate") }}">
+    <form id="form-metadata" method="post" action="{{ url_for('.generate') }}">
       <div class="input-field">
         <i class="material-icons prefix">business</i>
         <label for="location"> Deployment Location </label>
@@ -164,7 +164,7 @@ $(function(){
   var drz = new Dropzone(
     "form#file-drop",
     { 
-      url: "{{ url_for('upload') }}",
+      url: "{{ url_for('.upload') }}",
       method: "put", //"post", 
       maxFilesize: 512,
       accept: function(file, done) {
@@ -252,7 +252,7 @@ $(function(){
         }
       })
       $.ajax({
-        url: "{{ url_for('generate') }}",
+        url: "{{ url_for('.generate') }}",
         data: data,
         cache: false,
         contentType: false,
@@ -268,7 +268,7 @@ $(function(){
 
   // Wipe any files uploaded to the server already
   $("#clear-files").click(function(e){
-    $.post( "{{ url_for('clear') }}" , function(files) {
+    $.post( "{{ url_for('.clear') }}" , function(files) {
       console.log("files-cleared")
       Materialize.toast('Files cleared from server', 4000)
       drz.removeAllFiles()
@@ -293,7 +293,7 @@ $(function(){
   })
 
   // Retrieve files already on the server
-  $.get( "{{ url_for('status') }}" , function(data) {
+  $.get( "{{ url_for('.status') }}" , function(data) {
     if(data.files.length > 0)
       $('#file-drop').addClass("dz-started")
 
