@@ -260,7 +260,7 @@ $(function(){
         type: 'POST',
         success: function(data){
           // Navigate onwards
-          window.location.href = "/job";
+          window.location.href = "{{ url_for('.job') }}";
         }
       })
     }

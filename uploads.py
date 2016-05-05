@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Set up blueprint
-prefix = os.environ.get('PROXY_PATH', '')
+APPLICATION_ROOT = os.environ.get('PROXY_PATH', '')
 bax = Blueprint('bax', __name__, template_folder='templates')
 # Look at end of file for where this blueprint is actually registered to the app
 
@@ -201,11 +201,11 @@ def rem_job(sid):
 def index():
     log.debug(session.sid)
     if has_job(session.sid):
-        return redirect('/job')
+        return redirect( url_for('.job') )
     return render_template("upload.htm")
 
 
-@bax.route('/generate', methods=['POST'])
+@bax.route('generate', methods=['POST'])
 def generate():
     if not has_job(session.sid):
         try:
@@ -234,15 +234,15 @@ def generate():
             thread = threading.Thread(target=report_worker, args=(session.sid,))
             thread.start()
 
-    return redirect('/job')
+    return redirect( url_for('.job') )
 
 
-@bax.route('/job', methods=['GET', 'POST'])
+@bax.route('job', methods=['GET', 'POST'])
 def job():
     return render_template("jobstatus.htm", **get_template_variables() )
 
 
-@bax.route('/download', methods=['GET'])
+@bax.route('download', methods=['GET'])
 def download():
     job = get_job(session.sid)
     if 'generated_pdf' in job:
@@ -261,7 +261,7 @@ def download():
 '''
     API Routes
 '''
-@bax.route("/clear", methods=['GET', 'POST'])
+@bax.route("clear", methods=['GET', 'POST'])
 def clear():
     for fil in get_files(session.sid):
         try:
@@ -272,7 +272,7 @@ def clear():
     return 'Files cleared', 200
 
 
-@bax.route("/upload", methods=['PUT'])
+@bax.route("upload", methods=['PUT'])
 def upload():
     fil = request.files['file']
     file_info = save_file(fil, ALLOWED_EXTENSIONS)
@@ -287,12 +287,12 @@ def upload():
     return "File type '{}' rejected".format(file_info['file_extension']), 400
 
 
-@bax.route('/status', methods=['GET'])
+@bax.route('status', methods=['GET'])
 def status():
     return Response(json.dumps( get_template_variables() ), mimetype='application/json')
 
 
-@bax.route('/cancel', methods=['GET', 'POST'])
+@bax.route('cancel', methods=['GET', 'POST'])
 def cancel():
     if has_job(session.sid):
         ### Remove files
@@ -309,7 +309,7 @@ def cancel():
             rem_job(session.sid)
 
         if request.args.get('redirect'):
-            return redirect('/')
+            return redirect( url_for('.index') )
         return Response(json.dumps({ 'cancel':'ok' }), 200 
                 , mimetype='application/json')
     return Response(json.dumps({ 'cancel':'no-job' }), 200 
@@ -319,7 +319,7 @@ def cancel():
 '''
     Register blueprint to the app
 '''
-app.register_blueprint(bax, url_prefix=prefix)
+app.register_blueprint(bax, url_prefix=APPLICATION_ROOT)
 
 # Main. Does not run when running with WSGI
 if __name__ == "__main__":
@@ -333,5 +333,6 @@ if __name__ == "__main__":
         l.propagate = True
         l.setLevel(logging.DEBUG)
 
+    log.debug(app.url_map)
     app.run(**flask_options)
 
