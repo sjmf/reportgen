@@ -90,6 +90,10 @@ def df_from_csv(file_descriptor):
     log.debug("Dropping encrypted rows...")
     df.dropna(inplace=True)
 
+    # Sort to prevent "ValueError: index must be monotonic increasing or decreasing"
+    log.debug("Sorting by time index...")
+    df.sort_index(inplace=True)
+
     df.index.names = ['DateTime']
     return df
 

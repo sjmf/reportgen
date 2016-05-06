@@ -132,7 +132,8 @@ def get_week_range(t_start, t_end, df):
     ]
     weeks = [(start,end- pd.Timedelta('1 day')) for start,end in zip(weeks,weeks[1:])]
     # Skip weeks with no data
-    weeks = [ k for k in [w if sum( [len( df[w[0]:w[1]] )] ) > 0 else None for w in weeks] if k is not None ]
+    weeks = [ w if sum( [len( df.loc[w[0]:w[1]] )] ) > 0 else None for w in weeks ]
+    weeks = [ k for k in weeks if k is not None ]
     return weeks
 
 
