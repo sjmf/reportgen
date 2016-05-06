@@ -180,9 +180,7 @@ def read_data(input_datafiles):
     dfs = dh.split_by_id(df)
 
     # Apply fixes to the data and diff the PIR movement
-    dfs = dh.fix_humidity(dfs)
-    dfs = dh.fix_temp(dfs)
-    dfs = dh.diff_pir(dfs)
+    dfs = dh.clean_data(dfs)
 
     return (df, dfs, t_start, t_end)
 

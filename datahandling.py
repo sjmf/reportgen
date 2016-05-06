@@ -223,11 +223,22 @@ def fix_temp(dfs):
 
 
 '''
-    Produce a graph for a given datatype and time range
+   Clean up data: apply fixes and scrub erroneous values 
 '''
-def graph(datatype, timerange):
-    pass
+def clean_data(dfs):
+    # Limit range
+    for i in dfs:
+        dfs[i].loc[:,'Temp'] = dfs[i].loc[:,'Temp']\
+                .apply(lambda d: d if (d > -500) and (d < 1000) else np.NaN)
+        
+        dfs[i].loc[:,'Humidity'] = dfs[i].loc[:,'Humidity']\
+                .apply(lambda d: d if (d > 0.0) and (d < 101.0) else np.NaN)
 
+    dfs = fix_humidity(dfs)
+    dfs = fix_temp(dfs)
+    dfs = diff_pir(dfs)
+    
+    return dfs
 
 
 '''
