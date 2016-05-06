@@ -11,7 +11,7 @@
         page-break-before: avoid;
     }
     .cover img {
-        width:80%;
+        width:100%;
         margin:0;
         padding:0;
     }
