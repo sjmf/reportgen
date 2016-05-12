@@ -30,10 +30,13 @@ def readfile(filename):
     log.info("Detected MIME: {0}".format(mtype))
 
     # Plaintext BAX file
-    if mtype and 'text' in mtype:
-        return df_from_csv(filename)
-    else: # Binary (convert first)
-        return df_from_bin(filename)
+    try:
+        if mtype and 'text' in mtype:
+            return df_from_csv(filename)
+        else: # Binary (convert first)
+            return df_from_bin(filename)
+    except TypeError as e:
+        log.error("File not found: {}".format(filename))
 
 
 

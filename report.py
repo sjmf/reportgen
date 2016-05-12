@@ -30,14 +30,16 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     # Perform data read-in using the datahandling module and apply corrections
     df, dfs, t_start, t_end = read_data(input_datafiles)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
- 
+    
+    sensor_stats(dfs)
+
     # Set sensible matplotlib defaults for plotting graphs
     set_mpl_params()
 
     # Generate graphs using matplotlib for the following types:
     # (TODO: parameterize these for the ability to generate reports without some series)
     weeks = get_week_range(t_start, t_end, df)
-    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("RSSI", "RX Signal (dBm)")]
+    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("PIRDiff", "Movement (PIR counts per minute)")]#, ("RSSI", "RX Signal (dBm)")]
     
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
 
@@ -99,6 +101,23 @@ def report(input_datafiles, output_filename, *args, **kwargs):
         debug_css = weasyprint.CSS(template_dir+"debug.css")
         htm = weasyprint.HTML(string=output, base_url='.')
         pdf = htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])#, debug_css])
+
+
+'''
+    Print some statistics about sensors, and drop those with only one packet
+'''
+def sensor_stats(dfs):
+    for k in list(dfs.keys()):
+        if len(dfs[k]) <= 1:
+            log.warn("Dropping sensor {}: too few packets".format(k))
+            dfs.pop(k, None)
+
+    log.info(" ID      | Packets ")
+    log.info("=========|=========")
+    for k,df in dfs.items():
+        log.info("{0:8} | {1}".format(len(dfs[k]), k))
+
+    return dfs
 
 
 '''
@@ -226,11 +245,11 @@ if __name__ == "__main__":
     if args.verbose:
         if args.verbose >= 1:
             strh.setLevel(logging.DEBUG)
-            log.addHandler(strh)
         if args.verbose >= 2:
             logging.getLogger('datahandling.py').addHandler(strh)
         if args.verbose >= 3:
             logging.getLogger('graphing.py').addHandler(strh)
+            logging.getLogger('graphing.py').setLevel(logging.INFO)
 
     # Run report on the input args
     log.debug(vars(args))
