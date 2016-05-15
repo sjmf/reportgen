@@ -147,8 +147,13 @@ dt:after { content: ": "; }
     <p id="upload-ready" class="hide caption">Click &quot;generate&quot; below to generate your report.</p>
   </div>
 
+  <!-- Spinner -->
+  <div id="waiting" class="progress hide">
+    <div class="indeterminate"></div>
+  </div>
+
   <div class="modal-footer">
-    <a href="#!" class="modal-action modal-close waves-effect waves-blue btn-flat ">Cancel</a>
+    <a href="#!" id="generate-modal-cancel" class="modal-action modal-close waves-effect waves-blue btn-flat ">Cancel</a>
     <a href="#!" id="generate-report" class="waves-effect waves-blue btn blue disabled">Generate</a>
   </div>
 </div>
@@ -251,6 +256,13 @@ $(function(){
           }
         }
       })
+
+      // UI effects
+      $('#waiting').removeClass('hide')
+      $('#generate-report').addClass('disabled').off('click')
+      $('#generate-modal-cancel').addClass('disabled').removeClass('modal-close').off('click')
+
+      // Post and navigate on success
       $.ajax({
         url: "{{ url_for('.generate') }}",
         data: data,
