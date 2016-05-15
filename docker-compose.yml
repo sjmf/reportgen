@@ -4,6 +4,8 @@ services:
         build: .
         ports: 
         - "8888:80"
+        environment:
+        - PROXY_PATH=/dokku/baxreport/
         links:
         - redis
     redis:
