@@ -42,10 +42,10 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
     types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), 
              ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"), 
-             ("RSSI", "RX Signal (dBm)")]
+             ("RSSI", "RX Signal (dBm)"), ("Battery", "Battery level (mV)")]
 
     if series:
-        s_list = ['temperature','humidity','light','movement','rssi']
+        s_list = ['temperature','humidity','light','movement','rssi','battery']
         types = [ types[i] for i,t in enumerate(s_list) if t in series ]
     else:
         types = types[3:] # only temp + humid + light by default
