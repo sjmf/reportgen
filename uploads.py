@@ -87,7 +87,9 @@ def report_worker(sid):
         job = get_job(sid) 
 
         log.info("=============  STARTING WORKER  ==============")
-        
+        log.debug(job)
+        from ast import literal_eval
+        job['series'] = literal_eval(job['series']) # From string
         # Expand paths to full location on filesystem 
         output_filename = os.path.join(
             app.config['UPLOAD_FOLDER'], 
@@ -213,6 +215,10 @@ def generate():
                 'location'     : escape(request.form['location']),
                 'description'  : escape(request.form['description']),
                 'status'       : 'running',
+                'series'       : [ 
+                    k for k in ['temperature','humidity','light','movement','rssi'] 
+                        if k in request.form and request.form[k]=='true' 
+                ]
             }
             put_job(session.sid, job)    # Put job quickly to avoid races
 
@@ -265,10 +271,16 @@ def download():
 def clear():
     for fil in get_files(session.sid):
         try:
-            os.remove(fil['temporary_name']) 
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], fil['temporary_name']) )
         except FileNotFoundError:
+            log.warning("Ignoring missing file on clear files: {}".format(fil))
             pass
-    delete_files()
+
+    try:
+        delete_files()
+    except:
+        log.warning("Redis script failed. No files stored?")
+
     return 'Files cleared', 200
 
 
@@ -282,8 +294,10 @@ def upload():
             log.debug("{} files uploaded".format(count_files()))
 
             return "File Received: {}".format(file_info['original_name']), 200
+
     except KeyError as e:
         return "File '{}' already uploaded!".format(file_info['original_name']), 400
+
     return "File type '{}' rejected".format(file_info['file_extension']), 400
 
 
@@ -298,20 +312,26 @@ def cancel():
         ### Remove files
         job = get_job(session.sid)
         try:
+#            clear()
+
             if 'map_file' in job:
                 os.unlink(job['map_filename'])
             if 'generated_pdf' in job:
                 os.unlink(job['generated_pdf'])
+
         except:
             log.warning("Exception in cancel")
             pass
+
         finally:
             rem_job(session.sid)
 
         if request.args.get('redirect'):
             return redirect( url_for('.index') )
+
         return Response(json.dumps({ 'cancel':'ok' }), 200 
                 , mimetype='application/json')
+
     return Response(json.dumps({ 'cancel':'no-job' }), 200 
             , mimetype='application/json')
 
@@ -332,6 +352,7 @@ if __name__ == "__main__":
         l = logging.getLogger(l)
         l.propagate = True
         l.setLevel(logging.DEBUG)
+        l.addHandler(strh)
 
     log.debug(app.url_map)
     app.run(**flask_options)

@@ -122,7 +122,7 @@ code.job-output pre { height: 150px }
 
 
 <script type="text/javascript">
-INTERVAL = 2000
+INTERVAL = 10000
 
 $(function(){
   True=true; False=false; 
@@ -137,7 +137,7 @@ $(function(){
         success: function(data) {
           console.log(data) 
 
-          if (data.job.status == 'done'){
+          if (data.job.status == 'done' || data.job.status == 'error'){
             window.location = "{{ url_for('.job') }}"
           }
           timeout = setTimeout(reload, INTERVAL)

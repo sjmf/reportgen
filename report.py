@@ -24,6 +24,7 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description')
     location = kwargs.pop('location')
+    series = kwargs.pop('series', None)
 
     log.info("File list: "+ '\n'.join(input_datafiles))
 
@@ -37,10 +38,19 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     set_mpl_params()
 
     # Generate graphs using matplotlib for the following types:
-    # (TODO: parameterize these for the ability to generate reports without some series)
     weeks = get_week_range(t_start, t_end, df)
-    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), ("Light", "Light (lux)")]#, ("PIRDiff", "Movement (PIR counts per minute)")]#, ("RSSI", "RX Signal (dBm)")]
-    
+    # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
+    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), 
+             ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"), 
+             ("RSSI", "RX Signal (dBm)")]
+
+    if series:
+        s_list = ['temperature','humidity','light','movement','rssi']
+        types = [ types[i] for i,t in enumerate(s_list) if t in series ]
+    else:
+        types = types[3:] # only temp + humid + light by default
+
+    log.debug(types)
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
