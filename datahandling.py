@@ -226,6 +226,15 @@ def fix_temp(dfs):
 
 
 '''
+    Scrub erroneous values from light data
+'''
+def fix_light(dfs):
+    for i in dfs:
+        dfs[i].loc[:,'Light'].clip(0,1500)
+    return dfs
+
+
+'''
    Clean up data: apply fixes and scrub erroneous values 
 '''
 def clean_data(dfs):
@@ -240,6 +249,7 @@ def clean_data(dfs):
     dfs = fix_humidity(dfs)
     dfs = fix_temp(dfs)
     dfs = diff_pir(dfs)
+    dfs = fix_light(dfs)
     
     return dfs
 
