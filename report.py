@@ -261,7 +261,7 @@ if __name__ == "__main__":
             logging.getLogger('graphing.py').addHandler(strh)
             logging.getLogger('graphing.py').setLevel(logging.INFO)
 
-    # Run report on the input args
+    # Run report on the input args (with sensible default series)
     log.debug(vars(args))
-    report(**vars(args))
+    report(**{**vars(args), 'series':['temperature','humidity','light']})
 
