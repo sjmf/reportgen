@@ -226,11 +226,10 @@ def fix_temp(dfs):
 
 
 '''
-    Scrub erroneous values from light data
+    Scrub erroneous values using light data
 '''
 def fix_light(dfs):
-    for i in dfs:
-        dfs[i].loc[:,'Light'].clip(0,1500)
+    dfs = { i : dfs[i].drop(dfs[i][dfs[i].Light > 1500].index) for i in dfs }
     return dfs
 
 
@@ -246,10 +245,10 @@ def clean_data(dfs):
         dfs[i].loc[:,'Humidity'] = dfs[i].loc[:,'Humidity']\
                 .apply(lambda d: d if (d > 0.0) and (d < 101.0) else np.NaN)
 
+    dfs = fix_light(dfs)
     dfs = fix_humidity(dfs)
     dfs = fix_temp(dfs)
     dfs = diff_pir(dfs)
-    dfs = fix_light(dfs)
     
     return dfs
 
