@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # coding: utf-8
 import io, os, errno, re, json, tempfile, logging, threading, sys
-from flask import Flask, Blueprint, current_app, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
+from flask import Flask, Blueprint, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
 from flask.ext.session import Session
 from werkzeug import secure_filename
-from time import sleep
 from redis import Redis
 import report
 
@@ -24,11 +23,12 @@ UPLOAD_FOLDER = '/tmp/uploads'
 MAX_CONTENT_LENGTH = 512 * 1024 * 1024
 DEBUG = True
 
-ALLOWED_EXTENSIONS = set(['txt', 'csv', 'bin', 'bax'])
-IMAGE_EXTENSIONS = set(['jpg', 'png', 'svg', 'gif'])
+ALLOWED_EXTENSIONS = {'txt', 'csv', 'bin', 'bax'}
+IMAGE_EXTENSIONS = {'jpg', 'png', 'svg', 'gif'}
 
-host = os.environ.get('REDIS_URL', '://' + os.environ.get('REDIS_HOSTNAME', 'localhost'))
-redis = Redis(host=(host.split(':')[1][2:]))
+host = os.environ.get('REDIS_URL', os.environ.get('REDIS_HOSTNAME', 'localhost'))
+port = int(host.split(':')[1:][0]) if len(host.split(':')[1:]) else 6379
+redis = Redis(host=host.split(':')[0], port=port)
 
 # Flask-Session module setup
 SESSION_TYPE = 'redis'
@@ -37,8 +37,8 @@ app.config.from_object(__name__)
 Session(app)
 
 flask_options = {
-    'host':'0.0.0.0',
-    'threaded':True
+    'host': '0.0.0.0',
+    'threaded': True
 }
 
 
@@ -60,7 +60,7 @@ def escape_filename(filename):
 def save_file(fil, extensions_list):
     original_name = escape_filename(fil.filename)
     file_extension = original_name.rsplit('.', 1)[1].lower() if '.' in original_name else ''
-    temporary_name = next(tempfile._get_candidate_names()) +'.'+ file_extension
+    temporary_name = next(tempfile._get_candidate_names()) + '.' + file_extension
 
     if fil and file_extension in extensions_list:
         # Check the folder exists
@@ -71,11 +71,11 @@ def save_file(fil, extensions_list):
         file_size = os.stat(path).st_size
         
         return {
-            'original_name'   : original_name,
-            'temporary_name'  : temporary_name,
-            'file_extension'  : file_extension,
-            'file_size'       : file_size,
-            'content_type'    : fil.content_type,
+            'original_name':    original_name,
+            'temporary_name':   temporary_name,
+            'file_extension':   file_extension,
+            'file_size':        file_size,
+            'content_type':     fil.content_type
         }
 
     return None

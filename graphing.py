@@ -4,7 +4,6 @@
 from mpl_toolkits.axes_grid1 import host_subplot
 import mpl_toolkits.axisartist
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import pandas as pd
 import base64
 import calendar
@@ -250,7 +249,9 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
     # Explicitly close plot to stop ipython complaining about memory
     # (this also stops ipython displaying plots, but who cares)
+    fig.clf()
     plt.close()
+
     return b64
 
 
@@ -269,7 +270,7 @@ def test():
     import numpy as np
     n=10000
 
-    graph(np.array(range(0,n)),
+    multiaxis_graph(np.array(range(0,n)),
         [ np.sort(np.random.normal(0, 0.2, size=n)),
           np.sort(np.random.power(0.1, size=n)),
           np.sort(np.random.random(size=n)) ],

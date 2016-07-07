@@ -18,15 +18,15 @@ template_dir = "templates/"
 def report(input_datafiles, output_filename, *args, **kwargs):
 
     # Parse arguments
-    output_pdf = bool(kwargs.pop('pdf'))
-    output_htm = bool(kwargs.pop('htm'))
+    output_pdf = bool(kwargs.pop('pdf', True))
+    output_htm = bool(kwargs.pop('htm', False))
 
     map_filename = kwargs.pop('map_filename', None)
-    description = kwargs.pop('description')
-    location = kwargs.pop('location')
+    description = kwargs.pop('description', None)
+    location = kwargs.pop('location', None)
     series = kwargs.pop('series', None)
 
-    log.info("File list: "+ '\n'.join(input_datafiles))
+    log.info("File list: " + '\n'.join(input_datafiles))
 
     # Perform data read-in using the datahandling module and apply corrections
     df, dfs, t_start, t_end = read_data(input_datafiles)
