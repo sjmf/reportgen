@@ -342,7 +342,7 @@ def cancel():
 app.register_blueprint(bax, url_prefix=APPLICATION_ROOT)
 
 # Main. Does not run when running with WSGI
-if __name__ == "__main__":
+def run():
     strh = logging.StreamHandler() 
     strh.setLevel(logging.DEBUG)
     log.addHandler(strh)
@@ -356,4 +356,7 @@ if __name__ == "__main__":
 
     log.debug(app.url_map)
     app.run(**flask_options)
+
+if __name__ == "__main__":
+    run()
 
