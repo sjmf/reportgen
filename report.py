@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 # coding: utf-8
-import argparse, base64, calendar, jinja2, logging, mimetypes, multiprocessing, time, weasyprint
+import argparse
+import base64
+import jinja2
+import logging
+import mimetypes
+import multiprocessing
+import time
+import weasyprint
 import matplotlib as mpl
 import pandas as pd
 
 import datahandling as dh
-from graphing import plot_weekly, weekly_graph
+from graphing import weekly_graph
 
 # Tell me what you're doing, scripts :)
 log = logging.getLogger(__name__)
 
 template_dir = "templates/"
 
-'''
-    Generate a report PDF from an input BAX datafile list
-'''
+
+#
+# Generate a report PDF from an input BAX datafile list
+#
 def report(input_datafiles, output_filename, *args, **kwargs):
 
     # Parse arguments
@@ -31,7 +39,7 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     # Perform data read-in using the datahandling module and apply corrections
     df, dfs, t_start, t_end = read_data(input_datafiles)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
-    
+
     sensor_stats(dfs)
 
     # Set sensible matplotlib defaults for plotting graphs
@@ -40,8 +48,8 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     # Generate graphs using matplotlib for the following types:
     weeks = get_week_range(t_start, t_end, df)
     # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
-    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"), 
-             ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"), 
+    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"),
+             ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"),
              ("RSSI", "RX Signal (dBm)"), ("Battery", "Battery level (mV)")]
 
     if series:
@@ -76,16 +84,16 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     to_plot = [
         [
             {
-                'type'    : t,
-                'label'   : l,
-                'data'    : d[i],
-                't_start' : w[0].date(),
-                't_end'   : w[1].date()
-            } for i,w in enumerate(weeks)
-        ] for t,l,d in zip(*zip(*types), figs)
+                'type':     t,
+                'label':    l,
+                'data':     d[i],
+                't_start':  w[0].date(),
+                't_end':    w[1].date()
+            } for i, w in enumerate(weeks)
+        ] for t, l, d in zip(*zip(*types), figs)
     ]
 
-    # Read in the map 
+    # Read in the map
     if map_filename:
         loc_map = read_map(map_filename)
         log.debug('map type is '+ str(loc_map[1]))
@@ -113,9 +121,9 @@ def report(input_datafiles, output_filename, *args, **kwargs):
         pdf = htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])#, debug_css])
 
 
-'''
-    Print some statistics about sensors, and drop those with only one packet
-'''
+#
+# Print some statistics about sensors, and drop those with only one packet
+#
 def sensor_stats(dfs):
     for k in list(dfs.keys()):
         if len(dfs[k]) <= 1:
@@ -130,9 +138,9 @@ def sensor_stats(dfs):
     return dfs
 
 
-'''
-    Set appropriate matplotlib parameters
-'''
+#
+# Set appropriate matplotlib parameters
+#
 def set_mpl_params():
     mpl.style.use('seaborn-bright')#'fivethirtyeight')
     mpl.rcParams['lines.linewidth'] = 1
@@ -147,9 +155,9 @@ def set_mpl_params():
     mpl.rcParams['font.size'] = 10.0
 
 
-'''
-    Generate date range of weeks inclusive of start and end
-'''
+#
+# Generate date range of weeks inclusive of start and end
+#
 def get_week_range(t_start, t_end, df):
     weeks = [
         day for day in pd.date_range(
@@ -166,9 +174,9 @@ def get_week_range(t_start, t_end, df):
     return weeks
 
 
-'''
-    Read a map (image file) and base64 encode it for the template
-'''
+#
+# Read a map (image file) and base64 encode it for the template
+#
 def read_map(map_filename):
     try:
         with open(map_filename, 'rb') as t:
@@ -179,16 +187,16 @@ def read_map(map_filename):
             )
     except (FileNotFoundError, TypeError):
         log.error("Map not found: '"+map_filename+"'")
-        return (None,None)
+        return None, None
 
 
-'''
-    Read a BuildAX datafile. Accept:
-       * List of datafiles
-    and return:
-       * a Pandas DataFrame with corrections applied
-       * start and end date/time values for the period
-'''
+#
+# Read a BuildAX datafile. Accept:
+#     * List of datafiles
+#  and return:
+#     * a Pandas DataFrame with corrections applied
+#   * start and end date/time values for the period
+#
 def read_data(input_datafiles):
     pd.set_option('chained_assignment', None) # Hush up, SettingWithCopyWarning
 
@@ -214,9 +222,9 @@ def read_data(input_datafiles):
     return (df, dfs, t_start, t_end)
 
 
-'''
-    Render template to html and return a string
-'''
+#
+# Render template to html and return a string
+#
 def render_template(weeks, **kwargs):
     env = jinja2.Environment( loader=jinja2.FileSystemLoader(searchpath='./templates') )
     return env.get_template('output.htm').render(
@@ -225,6 +233,7 @@ def render_template(weeks, **kwargs):
     )
 
 
+# Main function: parse command line arguments
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 

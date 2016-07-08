@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 # coding: utf-8
-import io, os, errno, re, json, tempfile, logging, threading, sys
-from flask import Flask, Blueprint, escape, redirect, render_template, request, Response, send_from_directory, session, url_for
+import os
+import errno
+import re
+import json
+import tempfile
+import logging
+import threading
+import sys
+
+import report
+
+from flask import Flask, Blueprint, Response
+from flask import escape, redirect, render_template, request, send_from_directory, session, url_for
 from flask.ext.session import Session
 from werkzeug import secure_filename
 from redis import Redis
-import report
+
 
 # Set up logger
 log = logging.getLogger(__name__)
@@ -13,9 +24,12 @@ log = logging.getLogger(__name__)
 # Create flask app
 app = Flask(__name__)
 
+# Get appropriate directory for templates
+directory = os.path.dirname(os.path.abspath(__file__))
+
 # Set up blueprint
 APPLICATION_ROOT = os.environ.get('PROXY_PATH', '/').strip() or '/'
-bax = Blueprint('bax', __name__, template_folder='templates')
+bax = Blueprint('bax', __name__, template_folder=os.path.join(directory, 'templates'))
 # Look at end of file for where this blueprint is actually registered to the app
 
 # App options (loaded from_object)
@@ -42,15 +56,17 @@ flask_options = {
 }
 
 
-'''
-   Auxilliary functions 
-'''
+#
+# Auxiliary functions
+#
 def mkdir_p(path):
     try:
         os.makedirs(path)
     except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path): pass
-        else: raise
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 def escape_filename(filename):
@@ -81,7 +97,9 @@ def save_file(fil, extensions_list):
     return None
 
 
+#
 # Report generation worker thread
+#
 def report_worker(sid):
     try:
         job = get_job(sid) 
@@ -89,19 +107,20 @@ def report_worker(sid):
         log.info("=============  STARTING WORKER  ==============")
         log.debug(job)
         from ast import literal_eval
-        job['series'] = literal_eval(job['series']) # From string
+        job['series'] = literal_eval(job['series'])  # From string
         # Expand paths to full location on filesystem 
         output_filename = os.path.join(
             app.config['UPLOAD_FOLDER'], 
             next(tempfile._get_candidate_names()) + '.pdf')
-        
+
         # Make list of input datafiles
         input_datafiles = [
-                os.path.join( app.config['UPLOAD_FOLDER'], f['temporary_name'])
-            for f in get_files(sid) ]
+            os.path.join(app.config['UPLOAD_FOLDER'], f['temporary_name'])
+            for f in get_files(sid)
+        ]
 
         report.report(input_datafiles, output_filename, 
-                    **{**job, 'pdf':True, 'htm':False})
+                      **{**job, 'pdf': True, 'htm': False})
 
         log.info("=============  WORKER FINISHED  ==============")
 
@@ -122,8 +141,13 @@ def report_worker(sid):
 def rkey(prefix, sid, suffix=None):
     return prefix + ":" + sid + (":" + suffix if suffix else '')
 
+
 def dict_utf8(j):
-    return { k.decode('utf-8') : v.decode('utf-8') for k,v in j.items() } 
+    return {
+        k.decode('utf-8'): v.decode('utf-8')
+        for k, v in j.items()
+    }
+
 
 def get_template_variables():
     tpl = dict(session)
@@ -137,9 +161,10 @@ def get_template_variables():
     
     return tpl
 
-''' 
-    File handling
-'''
+
+#
+# File handling
+#
 def list_fkeys(sid='*'):
     fkeys = []
     cursor = 0
@@ -147,15 +172,15 @@ def list_fkeys(sid='*'):
     while True:
         cursor, keys = redis.scan(cursor, match=rkey('files', sid, '*'))
         fkeys.extend(keys)
-        #log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
+        # log.debug("Redis cursor @{0}, got {1} keys".format(cursor, len(keys)))
         if cursor == 0:
             return fkeys
 
 
 def get_files(sid):
-    return sorted( [
-            dict_utf8(j)     
-                for j in [ redis.hgetall(key) for key in list_fkeys(sid) ]
+    return sorted([
+            dict_utf8(j)
+            for j in [redis.hgetall(key) for key in list_fkeys(sid)]
         ], 
         key=lambda x: x['original_name'])
 
@@ -173,51 +198,61 @@ def count_files():
     return len(list_fkeys())
 
 
-# Atomic multikey delete: http://stackoverflow.com/a/16974060/1681205
+# Atomic multi-key delete: http://stackoverflow.com/a/16974060/1681205
 def delete_files():
-    return redis.eval("return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, rkey('files', session.sid, '*'))
+    return redis.eval(
+        "return redis.call('del', unpack(redis.call('keys', ARGV[1])))",
+        0,
+        rkey('files', session.sid, '*')
+    )
 
-'''
-    Job handling
-'''
+
+#
+# Job handling
+#
 def get_job(sid):
-    return dict_utf8(redis.hgetall( rkey('job',sid) ))
+    return dict_utf8(redis.hgetall(rkey('job', sid)))
 
-def put_job(sid,job):
+
+def put_job(sid, job):
     return redis.hmset(rkey('job', sid), job)
 
+
 def upd_job(sid, key, value):
-    return redis.hset( rkey('job', sid), key, value)
+    return redis.hset(rkey('job', sid), key, value)
+
 
 def has_job(sid):
-    return redis.exists( rkey('job', sid) )
+    return redis.exists(rkey('job', sid))
+
 
 def rem_job(sid):
-    return redis.delete( rkey('job', sid) )
+    return redis.delete(rkey('job', sid))
 
 
-'''
-    Application Routes
-'''
+#
+# Application Routes
+#
 @bax.route('/', methods=['GET'])
 def index():
     log.debug(session.sid)
     if has_job(session.sid):
-        return redirect( url_for('.job') )
+        return redirect(url_for('.job'))
     return render_template("upload.htm")
 
 
 @bax.route('generate', methods=['POST'])
 def generate():
+    job = None
     if not has_job(session.sid):
         try:
             job = {
-                'location'     : escape(request.form['location']),
-                'description'  : escape(request.form['description']),
-                'status'       : 'running',
-                'series'       : [ 
-                    k for k in ['temperature','humidity','light','movement','rssi'] 
-                        if k in request.form and request.form[k]=='true' 
+                'location':      escape(request.form['location']),
+                'description':   escape(request.form['description']),
+                'status':        'running',
+                'series': [
+                    k for k in ['temperature', 'humidity', 'light', 'movement', 'rssi']
+                    if k in request.form and request.form[k] == 'true'
                 ]
             }
             put_job(session.sid, job)    # Put job quickly to avoid races
@@ -226,8 +261,9 @@ def generate():
                 fil = next(iter(request.files.values()))
                 file_info = save_file(fil, IMAGE_EXTENSIONS)
                 job.update({
-                    'map_filename' : os.path.join(app.config['UPLOAD_FOLDER'], escape_filename(file_info['temporary_name'])),
-                    'map_file'     : escape_filename(file_info['original_name']),
+                    'map_filename': os.path.join(app.config['UPLOAD_FOLDER'],
+                                                 escape_filename(file_info['temporary_name'])),
+                    'map_file':     escape_filename(file_info['original_name']),
                 })
 
         except Exception as e:
@@ -240,12 +276,12 @@ def generate():
             thread = threading.Thread(target=report_worker, args=(session.sid,))
             thread.start()
 
-    return redirect( url_for('.job') )
+    return redirect(url_for('.job'))
 
 
 @bax.route('job', methods=['GET', 'POST'])
-def job():
-    return render_template("jobstatus.htm", **get_template_variables() )
+def job_status():
+    return render_template("jobstatus.htm", **get_template_variables())
 
 
 @bax.route('download', methods=['GET'])
@@ -257,21 +293,20 @@ def download():
             job['generated_pdf'].split('/')[-1],
             as_attachment=True,
             attachment_filename=escape_filename(
-                (job['location'] if job['location'] else 'output')
-                    +'.pdf'),
+                (job['location'] if job['location'] else 'output') + '.pdf'),
             mimetype='application/pdf')
 
     return "No file", 400
 
 
-'''
-    API Routes
-'''
+#
+# API Routes
+#
 @bax.route("clear", methods=['GET', 'POST'])
 def clear():
     for fil in get_files(session.sid):
         try:
-            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], fil['temporary_name']) )
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], fil['temporary_name']))
         except FileNotFoundError:
             log.warning("Ignoring missing file on clear files: {}".format(fil))
             pass
@@ -296,6 +331,7 @@ def upload():
             return "File Received: {}".format(file_info['original_name']), 200
 
     except KeyError as e:
+        log.error(e)
         return "File '{}' already uploaded!".format(file_info['original_name']), 400
 
     return "File type '{}' rejected".format(file_info['file_extension']), 400
@@ -303,17 +339,16 @@ def upload():
 
 @bax.route('status', methods=['GET'])
 def status():
-    return Response(json.dumps( get_template_variables() ), mimetype='application/json')
+    return Response(json.dumps(get_template_variables()), mimetype='application/json')
 
 
 @bax.route('cancel', methods=['GET', 'POST'])
 def cancel():
     if has_job(session.sid):
-        ### Remove files
+        # Remove files
         job = get_job(session.sid)
         try:
-#            clear()
-
+            # clear()
             if 'map_file' in job:
                 os.unlink(job['map_filename'])
             if 'generated_pdf' in job:
@@ -327,19 +362,20 @@ def cancel():
             rem_job(session.sid)
 
         if request.args.get('redirect'):
-            return redirect( url_for('.index') )
+            return redirect(url_for('.index'))
 
-        return Response(json.dumps({ 'cancel':'ok' }), 200 
-                , mimetype='application/json')
+        return Response(json.dumps({'cancel': 'ok'}), 200,
+                        mimetype='application/json')
 
-    return Response(json.dumps({ 'cancel':'no-job' }), 200 
-            , mimetype='application/json')
+    return Response(json.dumps({'cancel': 'no-job'}), 200,
+                    mimetype='application/json')
 
 
-'''
-    Register blueprint to the app
-'''
+#
+# Register blueprint to the app
+#
 app.register_blueprint(bax, url_prefix=APPLICATION_ROOT)
+
 
 # Main. Does not run when running with WSGI
 def run():
@@ -348,7 +384,7 @@ def run():
     log.addHandler(strh)
     log.setLevel(logging.DEBUG) 
 
-    for l in ['report.py','datahandling.py']:
+    for l in ['report.py', 'datahandling.py']:
         l = logging.getLogger(l)
         l.propagate = True
         l.setLevel(logging.DEBUG)
