@@ -104,13 +104,17 @@ def df_from_csv(file_descriptor):
 # Extract individual sensors to a list
 #
 def unique_sensors(df):
-    return df.Name.unique()
+    return [name.upper() for name in df.Name.unique()]
 
 
 #
 # Split a dataframe by the sensor ID and return a mapping
 #
 def split_by_id(df):
+    # Make sure all the names are the same case for comparison!
+    df.loc[:, 'Name'] = df['Name'].apply(lambda name: name.upper())
+
+    # Return mapping of name to (sub)dataframe
     return {n: df.loc[df.Name == n, :] for n in df.Name.unique()}
 
 
@@ -158,6 +162,10 @@ def diff_pir(dfs):
         dfs[i].loc[:, 'PIRDiff'] = df_diff
         # dfs[i].loc[:,'PIRStd'] = df_std
 
+    # Scrub erroneous values:
+    pir_threshold = 1500
+    dfs = {i: dfs[i].drop(dfs[i][dfs[i].PIRDiff > pir_threshold].index) for i in dfs}
+    dfs = {i: dfs[i].drop(dfs[i][dfs[i].PIRDiff < -pir_threshold].index) for i in dfs}
     return dfs
 
 
