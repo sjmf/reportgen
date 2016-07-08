@@ -55,8 +55,10 @@ def report(input_datafiles, output_filename, **kwargs):
     if series:
         s_list = ['temperature', 'humidity', 'light', 'movement', 'rssi', 'battery']
         types = [types[i] for i, t in enumerate(s_list) if t in series]
-    else:
-        types = types[3:]  # only temp + humid + light by default
+
+    # Comment out else, plot everything by default:
+    # else:
+    #    types = types[:3]  # only temp + humid + light by default
 
     log.debug(types)
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
@@ -222,6 +224,10 @@ def read_data(input_datafiles):
     # Multithreaded:  19.43 seconds. Winner!
     p = multiprocessing.Pool()
     df = pd.concat(p.map(dh.readfile, input_datafiles))
+
+    # Lots of subprocesses hanging around: clean 'em up:
+    p.close()
+    p.join()
     
     log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
 
