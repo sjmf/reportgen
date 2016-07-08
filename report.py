@@ -23,11 +23,11 @@ template_dir = "templates/"
 #
 # Generate a report PDF from an input BAX datafile list
 #
-def report(input_datafiles, output_filename, *args, **kwargs):
+def report(input_datafiles, output_filename, **kwargs):
 
     # Parse arguments
     output_pdf = bool(kwargs.pop('pdf', True))
-    output_htm = bool(kwargs.pop('htm', False))
+    # output_htm = bool(kwargs.pop('htm', False))
 
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description', None)
@@ -53,29 +53,37 @@ def report(input_datafiles, output_filename, *args, **kwargs):
              ("RSSI", "RX Signal (dBm)"), ("Battery", "Battery level (mV)")]
 
     if series:
-        s_list = ['temperature','humidity','light','movement','rssi','battery']
-        types = [ types[i] for i,t in enumerate(s_list) if t in series ]
+        s_list = ['temperature', 'humidity', 'light', 'movement', 'rssi', 'battery']
+        types = [types[i] for i, t in enumerate(s_list) if t in series]
     else:
-        types = types[3:] # only temp + humid + light by default
+        types = types[3:]  # only temp + humid + light by default
 
     log.debug(types)
     log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
     # Single-threaded: 46.72s
-    figs  = [ [weekly_graph( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ]
+    figs = [
+        [
+            weekly_graph(dfs, *typestrings, *period)
+            for period in weeks
+        ] for typestrings in types]
+
+# e.g. ('Light',
+#       'Light (lux)',
+#       Timestamp('2014-12-29 00:00:00', offset='W-MON'),
+#       Timestamp('2015-01-04 00:00:00', offset='W-MON')),
+
 #    from functools import partial
-
-    # e.g. ('Light', 'Light (lux)', Timestamp('2014-12-29 00:00:00', offset='W-MON'), Timestamp('2015-01-04 00:00:00', offset='W-MON')),
 #    series = sum([[( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ],[])
-
 #    start_time = time.time()
-    # Plotting graphs this way gives an error:
-    # The process has forked and you cannot use this CoreFoundation functionality safely. You MUST exec().
-    # Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
+
+# Plotting graphs this way gives an error:
+# The process has forked and you cannot use this CoreFoundation functionality safely. You MUST exec().
+# Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
+
 #    p = multiprocessing.Pool()
 #    figs = p.map(plot_weekly, series)
-
 #    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
 
     # Format graphs and metadata into a data structure for the jinja2 templater
@@ -94,31 +102,34 @@ def report(input_datafiles, output_filename, *args, **kwargs):
     ]
 
     # Read in the map
-    if map_filename:
+    loc_map = None
+    if map_filename is not None:
         loc_map = read_map(map_filename)
-        log.debug('map type is '+ str(loc_map[1]))
+        log.debug('map type is ' + str(loc_map[1]))
 
     output = render_template(
         weeks=weeks,
         to_plot=to_plot,
         location=location,
         description=description,
-        map=dict(zip(['b64', 'mime'],loc_map))
-                if map_filename and loc_map[1] else None
+        map=dict(zip(['b64', 'mime'], loc_map)) if map_filename is not None and loc_map[1] is not None else None
     )
 
     log.debug(output[:150].replace('\n', ' '))
 
-    log.info( "Writing to {1} file {0}".format(output_filename,('HTM' if output_htm else 'PDF')) )
-    if output_htm:
-        # write to HTML:
-        with open(output_filename, 'w+') as t: t.write(output)
-    else:
+    log.info("Writing to {1} file {0}".format(output_filename, ('PDF' if output_pdf else 'HTM')))
+
+    if output_pdf:
         # write to PDF
         print_css = weasyprint.CSS(template_dir+"report.css")
-        debug_css = weasyprint.CSS(template_dir+"debug.css")
+        # debug_css = weasyprint.CSS(template_dir+"debug.css")
         htm = weasyprint.HTML(string=output, base_url='.')
-        pdf = htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])#, debug_css])
+        htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])  # , debug_css])
+
+    else:
+        # write to HTML:
+        with open(output_filename, 'w+') as t:
+            t.write(output)
 
 
 #
@@ -132,7 +143,7 @@ def sensor_stats(dfs):
 
     log.info(" ID      | Packets ")
     log.info("=========|=========")
-    for k,df in dfs.items():
+    for k, df in dfs.items():
         log.info("{0:8} | {1}".format(len(dfs[k]), k))
 
     return dfs
@@ -142,9 +153,9 @@ def sensor_stats(dfs):
 # Set appropriate matplotlib parameters
 #
 def set_mpl_params():
-    mpl.style.use('seaborn-bright')#'fivethirtyeight')
+    mpl.style.use('seaborn-bright')  # 'fivethirtyeight')
     mpl.rcParams['lines.linewidth'] = 1
-    mpl.rcParams['figure.figsize'] = (8,12) #(3,2)
+    mpl.rcParams['figure.figsize'] = (8, 12)  # (3,2)
     mpl.rcParams['axes.titlesize'] = 'large'
     mpl.rcParams['axes.labelsize'] = 'small'
     mpl.rcParams['xtick.labelsize'] = 'small'
@@ -167,10 +178,13 @@ def get_week_range(t_start, t_end, df):
             closed=None
         )
     ]
-    weeks = [(start,end- pd.Timedelta('1 day')) for start,end in zip(weeks,weeks[1:])]
+
+    weeks = [(start, end - pd.Timedelta('1 day')) for start, end in zip(weeks, weeks[1:])]
+
     # Skip weeks with no data
-    weeks = [ w if sum( [len( df.loc[w[0]:w[1]] )] ) > 0 else None for w in weeks ]
-    weeks = [ k for k in weeks if k is not None ]
+    weeks = [w if sum([len(df.loc[w[0]:w[1]])]) > 0 else None for w in weeks]
+    weeks = [k for k in weeks if k is not None]
+
     return weeks
 
 
@@ -182,7 +196,7 @@ def read_map(map_filename):
         with open(map_filename, 'rb') as t:
             log.debug("Reading map: '"+map_filename+"'")
             return (
-                base64.b64encode(t.read()).decode('utf8').replace('\n',''),
+                base64.b64encode(t.read()).decode('utf8').replace('\n', ''),
                 mimetypes.guess_type(map_filename)[0]
             )
     except (FileNotFoundError, TypeError):
@@ -198,38 +212,38 @@ def read_map(map_filename):
 #   * start and end date/time values for the period
 #
 def read_data(input_datafiles):
-    pd.set_option('chained_assignment', None) # Hush up, SettingWithCopyWarning
+    pd.set_option('chained_assignment', None)  # Hush up, SettingWithCopyWarning
 
     start_time = time.time()
     # Use a generator to concatenate datafiles into a list 
     # Single threaded: 60.73 seconds 
-    #df = pd.concat( (dh.readfile(infile) for infile in input_datafiles) )
+    # df = pd.concat( (dh.readfile(infile) for infile in input_datafiles) )
 
     # Multithreaded:  19.43 seconds. Winner!
     p = multiprocessing.Pool()
-    df = pd.concat( p.map(dh.readfile, input_datafiles) )
+    df = pd.concat(p.map(dh.readfile, input_datafiles))
     
     log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
 
     # Extract sensor IDs / names and split into dict by sensor ID
     t_start, t_end = (df.index.min(), df.index.max())
-    names = dh.unique_sensors(df)
+    # names = dh.unique_sensors(df)
     dfs = dh.split_by_id(df)
 
     # Apply fixes to the data and diff the PIR movement
     dfs = dh.clean_data(dfs)
 
-    return (df, dfs, t_start, t_end)
+    return df, dfs, t_start, t_end
 
 
 #
 # Render template to html and return a string
 #
 def render_template(weeks, **kwargs):
-    env = jinja2.Environment( loader=jinja2.FileSystemLoader(searchpath='./templates') )
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath='./templates'))
     return env.get_template('output.htm').render(
         **kwargs,
-        period = ( weeks[0][0].date().strftime('%d %b'), weeks[-1:][0][0].date().strftime('%d %b') )
+        period=(weeks[0][0].date().strftime('%d %b'), weeks[-1:][0][0].date().strftime('%d %b'))
     )
 
 
@@ -272,5 +286,4 @@ if __name__ == "__main__":
 
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
-    report(**{**vars(args), 'series':['temperature','humidity','light']})
-
+    report(**{**vars(args), 'series': ['temperature', 'humidity', 'light']})

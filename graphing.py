@@ -98,13 +98,13 @@ def multiaxis_graph(x_data, y_data, **kwargs):
                 t.set_color(colors[i % len(colors)])  # p.get_color())
 
             # Accept either a list or a tuple for ylim:
-            if ylim:
+            if ylim is not None:
                 if type(ylim) is tuple:
                     ax.set_ylim(*ylim)
                 elif (type(ylim) is list) and (ylim[i] is not None):
                     ax.set_ylim(*ylim[i])
 
-            if yscale:
+            if yscale is not None:
                 if type(yscale) is list:
                     ax.set_yscale(yscale[i])
                 elif type(yscale) is str:
