@@ -280,7 +280,7 @@ def generate():
 
 
 @bax.route('job', methods=['GET', 'POST'])
-def job_status():
+def job():
     return render_template("jobstatus.htm", **get_template_variables())
 
 
