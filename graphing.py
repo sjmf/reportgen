@@ -159,6 +159,8 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
     rows = 4
     cols = 2
     colors = kwargs.pop('colors', graph.colors)
+    spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
+
     # Eight subplots, returned as a 2-d array
     fig, axarr = plt.subplots(rows, cols, sharey=True)
     fig.subplots_adjust(hspace=0, wspace=0)
@@ -169,6 +171,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
     log.info("{0: <8} - {1} to {2}".format(series, str(t_start), str(t_end)))
 
+    # Start plotting at cell 1 (cell zero is legend)
     i = 1
     for day in pd.date_range(t_start, t_end, freq='D', normalize=True):
         start, end = (day, (day + pd.Timedelta('1 day')))
@@ -180,9 +183,9 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
         y_data = [dfs[i].loc[start:end, series].values for i in dfs]
 
         # Ignore days with one value (e.g. fetch interface returns 23:59:58 from the previous day)
-        #        if sum( [len(x) for x in x_data] ) <= len( x_data ):
-        #            log.debug("Skipping {0} as not enough data".format(t_start))
-        #            continue
+        # if sum( [len(x) for x in x_data] ) <= len( x_data ):
+        #     log.debug("Skipping {0} as not enough data".format(t_start))
+        #     continue
 
         log.debug("Graphing {0} in cell {1} @{2},{3}".format(t_start, i, row, col))
 
@@ -200,8 +203,15 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
         ax.grid(alpha=0.25)
 
-        # ax.text(3, 2, 'hiya')
+        # Set spines for this grid box (the outside lines)
+        for sp in spines.keys():
+            ax.spines[sp].set_visible(spines[sp])
+
         i += 1
+
+    # Set spines for legend cell
+    for sp in spines.keys():
+        axarr[0, 0].spines[sp].set_visible(spines[sp])
 
     # Fine-tune figure
     # Set labels on left column plots y-axis
