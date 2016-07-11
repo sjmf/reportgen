@@ -65,8 +65,7 @@ def report(input_datafiles, output_filename, **kwargs):
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
     # Single-threaded: 46.72s
-    figs = [
-        [
+    figs = [[
             weekly_graph(dfs, *typestrings, *period)
             for period in weeks
         ] for typestrings in types]
@@ -171,13 +170,14 @@ def set_mpl_params():
 #
 # Generate date range of weeks inclusive of start and end
 #
-def get_week_range(t_start, t_end, df):
+def get_week_range(t_start, t_end, df, freq='W-MON', **kwargs):
     weeks = [
         day for day in pd.date_range(
             (t_start - pd.Timedelta('7 days')), t_end + pd.Timedelta('7 days'), 
-            freq='W-MON', 
+            freq=freq,
             normalize=True, 
-            closed=None
+            closed=None,
+            **kwargs
         )
     ]
 
