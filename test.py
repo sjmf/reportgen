@@ -29,6 +29,7 @@ DATAFILES = [
     ([DATA_ROOT + "CORE building data/openlab-bax-6.csv"],
      "CORE building"),
 ]
+DATAFILES = DATAFILES[1:2]
 TEST_PATH = 'test_output'
 object_counts = []
 
