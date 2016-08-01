@@ -8,6 +8,7 @@ import calendar
 import logging
 
 from mpl_toolkits.axes_grid1 import host_subplot
+from matplotlib.ticker import MaxNLocator
 from io import BytesIO
 from os import makedirs
 
@@ -151,13 +152,24 @@ def multiaxis_graph(x_data, y_data, **kwargs):
 #
 # Plot a series as weekly views using subplots
 #
-def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
+def weekly_graph(dfs: dict,
+                 series,
+                 y_label,
+                 t_start,
+                 t_end,
+                 cols=2,
+                 legend_cols=3,
+                 grid=True,
+                 spline_alpha=0.1,
+                 txt_alpha=0.6,
+                 sort_legend=True,
+                 **kwargs):
+
     # Argument sanity check
     if t_end - t_start > pd.Timedelta('6 days'):
         raise ValueError("Date range passed is > 1 week: {0} to {1}".format(t_start, t_end))
 
-    rows = 4
-    cols = 2
+    rows = 8 // cols
     colors = kwargs.pop('colors', graph.colors)
     spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
 
@@ -166,7 +178,12 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
     fig.subplots_adjust(hspace=0, wspace=0)
     fig.autofmt_xdate()
 
-    from matplotlib.ticker import MaxNLocator
+    # Reformat axarr for 1x8 or 8x1 plots
+    if rows == 1:
+        axarr = [axarr,[]]
+    if cols == 1:
+        axarr = [[ax] for ax in axarr]
+
     plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
 
     log.info("{0: <8} - {1} to {2}".format(series, str(t_start), str(t_end)))
@@ -176,7 +193,7 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
     for day in pd.date_range(t_start, t_end, freq='D', normalize=True):
         start, end = (day, (day + pd.Timedelta('1 day')))
         row, col = (i // cols, i % cols)
-        ax = axarr[row, col]
+        ax = axarr[row][col]
 
         # Pandas Data
         x_data = [dfs[i].loc[start:end, ].index for i in dfs]
@@ -198,28 +215,36 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
 
         ax.set_title(
             # 'Axis [{0},{1}]'.format(row, col),
-            "{0} {1}".format(calendar.day_abbr[start.dayofweek], start.date().strftime('%d %b')),
+            "{0} {1}".format(calendar.day_abbr[start.dayofweek],
+                             start.date().strftime('%d %b')),
             loc='left', x=0.05, y=0.80)
 
-        ax.grid(alpha=0.25)
+        if grid:
+            ax.grid(alpha=0.25)
 
         # Set spines for this grid box (the outside lines)
         for sp in spines.keys():
             ax.spines[sp].set_visible(spines[sp])
+            ax.spines[sp].set_alpha(spline_alpha)
 
         i += 1
 
+    # Set text/label alpha
+    [l.set_alpha(txt_alpha) for l in ax.xaxis.get_ticklabels()]
+    [l.set_alpha(txt_alpha) for l in ax.yaxis.get_ticklabels()]
+
     # Set spines for legend cell
     for sp in spines.keys():
-        axarr[0, 0].spines[sp].set_visible(spines[sp])
+        axarr[0][0].spines[sp].set_visible(spines[sp])
+        axarr[0][0].spines[sp].set_alpha(spline_alpha)
 
     # Fine-tune figure
     # Set labels on left column plots y-axis
     for row in range(0, rows):
-        axarr[row, 0].set_ylabel(y_label)
+        axarr[row][0].set_ylabel(y_label)
 
         for col in range(0, cols):
-            axarr[row, col].tick_params(
+            axarr[row][col].tick_params(
                 axis='both',  # changes apply to both axis
                 which='both',  # both major and minor ticks are affected
                 bottom='off',  # ticks along the bottom edge are off
@@ -228,18 +253,30 @@ def weekly_graph(dfs, series, y_label, t_start, t_end, **kwargs):
                 right='off',
                 labelbottom='on')  # labels along the bottom edge are on
 
+    # Get the handles and labels for a legend
+    handles = axarr[0][1 if cols > 1 else 0].lines
+    labels = list(dfs.keys())
+
+    # sort legend by labels
+    if sort_legend:
+        import operator
+        hl = sorted(zip(handles, labels),
+                    key=operator.itemgetter(1))
+        handles, labels = zip(*hl)
+
     # Plot a legend inside the upper leftmost figure
     leg = plt.figlegend(
-        handles=axarr[0, 1].lines,
-        labels=list(dfs.keys()),
+        handles=handles,
+        labels=labels,
         loc='upper left',
         bbox_to_anchor=(0.13, -0.1, 1, 1),
         bbox_transform=plt.gcf().transFigure,
-        ncol=3,
+        ncol=legend_cols,
         labelspacing=0.5,
         columnspacing=0.25,
         markerscale=2,
         frameon=False)
+
     plt.setp(leg.get_lines(), linewidth=1.5)  # the legend linewidth
 
     # Output to buffer using savefig
