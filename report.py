@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
+import os
+import sys
 import argparse
 import base64
 import jinja2
@@ -17,7 +19,7 @@ from graphing import weekly_graph
 # Tell me what you're doing, scripts :)
 log = logging.getLogger(__name__)
 
-template_dir = "templates/"
+template_dir = os.path.join(sys.path[0], "templates")
 
 
 #
@@ -122,8 +124,8 @@ def report(input_datafiles, output_filename, **kwargs):
 
     if output_pdf:
         # write to PDF
-        print_css = weasyprint.CSS(template_dir+"report.css")
-        # debug_css = weasyprint.CSS(template_dir+"debug.css")
+        print_css = weasyprint.CSS(os.path.join(template_dir, "report.css"))
+        # debug_css = weasyprint.CSS(os.path.join(template_dir, "debug.css"))
         htm = weasyprint.HTML(string=output, base_url='.')
         htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])  # , debug_css])
 
@@ -246,7 +248,7 @@ def read_data(input_datafiles):
 # Render template to html and return a string
 #
 def render_template(weeks, **kwargs):
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath='./templates'))
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=template_dir))
     return env.get_template('output.htm').render(
         **kwargs,
         period=(weeks[0][0].date().strftime('%d %b'), weeks[-1:][0][0].date().strftime('%d %b'))
