@@ -86,7 +86,11 @@ def df_from_csv(file_descriptor):
             'PIRCount',
             'PIREnergy',
             'Switch'
-        ))
+        ),
+        dtype={
+            'Name':'S8'
+        }
+    )
 
     # Drop encrypted rows
     log.debug("Dropping encrypted rows...")
@@ -112,7 +116,7 @@ def unique_sensors(df):
 #
 def split_by_id(df, name_column='Name'):
     # Make sure all the names are the same case for comparison!
-    df.loc[:, name_column] = df[name_column].apply(lambda name: name.upper())
+    df.loc[:, name_column] = df[name_column].apply(lambda name: str(name).upper())
 
     # Return mapping of name to (sub)dataframe
     return {n: df.loc[df[name_column] == n, :] for n in df[name_column].unique()}
