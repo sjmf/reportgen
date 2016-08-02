@@ -116,7 +116,7 @@ def unique_sensors(df):
 #
 def split_by_id(df, name_column='Name'):
     # Make sure all the names are the same case for comparison!
-    df.loc[:, name_column] = df[name_column].apply(lambda name: str(name).upper())
+    df.loc[:, name_column] = df[name_column].apply(lambda name: name.upper().decode("utf-8"))
 
     # Return mapping of name to (sub)dataframe
     return {n: df.loc[df[name_column] == n, :] for n in df[name_column].unique()}
