@@ -227,6 +227,9 @@ def read_data(input_datafiles):
     p = multiprocessing.Pool()
     df = pd.concat(p.map(dh.readfile, input_datafiles))
 
+    log.info("Running final sort on merge...")
+    df.sort_index(inplace=True) # Sort again on merge
+
     # Lots of subprocesses hanging around: clean 'em up:
     p.close()
     p.join()
