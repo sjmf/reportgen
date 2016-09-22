@@ -273,6 +273,8 @@ if __name__ == "__main__":
     parser.add_argument("--map",         dest="map_filename", action="store", type=str, help="Image file path")
     parser.add_argument("--location",    dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
     parser.add_argument("--description", dest="description",  action="store", type=str, help="Verbose description to add to report")
+    
+    parser.add_argument('--series', nargs='+', type=str)
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--pdf", action="store_true", default=False, help="Output a PDF file")
@@ -297,4 +299,4 @@ if __name__ == "__main__":
 
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
-    report(**{**vars(args), 'series': ['temperature', 'humidity', 'light']})
+    report(**{**vars(args)})
