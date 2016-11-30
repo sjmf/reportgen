@@ -300,3 +300,4 @@ if __name__ == "__main__":
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
     report(**{**vars(args)})
+
