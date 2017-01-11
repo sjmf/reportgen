@@ -105,6 +105,27 @@ def df_from_csv(file_descriptor):
 
 
 #
+# Read sensor data from CSV file formatted as the following:
+#     SENSORID,SensorName
+# Accept:
+#   * Filename
+# Return: 
+#   * dict() object mapping sensor IDs to names
+def read_sensor_names(sensor_file): 
+    import csv
+    with open(sensor_file) as f:
+        return dict(csv.reader(f))
+
+
+#
+# Replaces the keys of the dfs with the names specified in file
+# Caller is responsible for ensuring there are no conflicts as
+# this involves reversing a mapping
+def apply_sensor_names(dfs, name_map):
+    return {name_map[k]: v for k, v in dfs.items()}
+
+
+#
 # Extract individual sensors to a list
 #
 def unique_sensors(df):

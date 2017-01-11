@@ -35,6 +35,7 @@ def report(input_datafiles, output_filename, **kwargs):
     description = kwargs.pop('description', None)
     location = kwargs.pop('location', None)
     series = kwargs.pop('series', None)
+    names = kwargs.pop('names', None)
 
     log.info("File list: " + '\n'.join(input_datafiles))
 
@@ -42,6 +43,12 @@ def report(input_datafiles, output_filename, **kwargs):
     df, dfs, t_start, t_end = read_data(input_datafiles)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
 
+    if names:
+        name_map = dh.read_sensor_names(names)  # Read in names
+        dfs = dh.apply_sensor_names(dfs, name_map) # Apply names
+        log.debug(name_map)
+
+    # Print statistics
     sensor_stats(dfs)
 
     # Set sensible matplotlib defaults for plotting graphs
@@ -67,10 +74,13 @@ def report(input_datafiles, output_filename, **kwargs):
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
     # Single-threaded: 46.72s
+    # *typestring: (series, y_label) from types array
+    # *period: (t_start, t_end)
     figs = [[
-            weekly_graph(dfs, *typestrings, *period)
+            weekly_graph(dfs, *typestring, *period,
+                         legend_cols=1 if names else 3)
             for period in weeks
-        ] for typestrings in types]
+        ] for typestring in types]
 
 # e.g. ('Light',
 #       'Light (lux)',
@@ -78,7 +88,7 @@ def report(input_datafiles, output_filename, **kwargs):
 #       Timestamp('2015-01-04 00:00:00', offset='W-MON')),
 
 #    from functools import partial
-#    series = sum([[( dfs, *typestrings, *period ) for period in weeks] for typestrings in types ],[])
+#    series = sum([[( dfs, *typestring, *period ) for period in weeks] for typestring in types ],[])
 #    start_time = time.time()
 
 # Plotting graphs this way gives an error:
@@ -88,6 +98,7 @@ def report(input_datafiles, output_filename, **kwargs):
 #    p = multiprocessing.Pool()
 #    figs = p.map(plot_weekly, series)
 #    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
+
 
     # Format graphs and metadata into a data structure for the jinja2 templater
     # Generates a structure of the form: to_plot[week][series][data]
@@ -147,7 +158,7 @@ def sensor_stats(dfs):
     log.info(" ID      | Packets ")
     log.info("=========|=========")
     for k, df in dfs.items():
-        log.info("{0:8} | {1}".format(len(dfs[k]), k))
+        log.info("{0:8} | {1}".format(k[:8], len(dfs[k])))
 
     return dfs
 
@@ -273,7 +284,9 @@ if __name__ == "__main__":
     parser.add_argument("--map",         dest="map_filename", action="store", type=str, help="Image file path")
     parser.add_argument("--location",    dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
     parser.add_argument("--description", dest="description",  action="store", type=str, help="Verbose description to add to report")
-    
+
+    parser.add_argument("--names",       dest="names",        action="store", type=str, help="File containing sensor name mappings")
+
     parser.add_argument('--series', nargs='+', type=str)
 
     group = parser.add_mutually_exclusive_group()
@@ -299,5 +312,3 @@ if __name__ == "__main__":
 
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
-    report(**{**vars(args)})
-
