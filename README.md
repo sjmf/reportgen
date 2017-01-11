@@ -6,6 +6,16 @@ graphs from BuildAX datasets.
 ## Dependencies
 BAXTest tooling from the openmovement repository
 
+## Example call:
+```
+~/Code/reportgen/report.py \
+	--map ~/Dropbox/PhD/BuildAX/Cassie/maps/Ground\ floor\ Cassie\ 001.jpeg \
+	--location "Cassie Ground Floor" \
+    -p \
+    ~/Dropbox/PhD/BuildAX/Cassie/split/Ground\ Floor.csv \
+    ~/Dropbox/PhD/BuildAX/Cassie/Cassie_Ground.pdf
+```
+
 ## APT deps
 `apt-get install python-dev libxml2 libxml2-dev libxslt-dev`
 
