@@ -34,10 +34,11 @@ def report(input_datafiles, output_filename, **kwargs):
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description', None)
     location = kwargs.pop('location', None)
+    threshold = kwargs.pop('threshold', None)
     series = kwargs.pop('series', None)
     names = kwargs.pop('names', None)
 
-    log.info("File list: " + '\n'.join(input_datafiles))
+#    log.debug("File list: " + '\n'.join(input_datafiles))
 
     # Perform data read-in using the datahandling module and apply corrections
     df, dfs, t_start, t_end = read_data(input_datafiles)
@@ -49,7 +50,7 @@ def report(input_datafiles, output_filename, **kwargs):
         log.debug(name_map)
 
     # Print statistics
-    sensor_stats(dfs)
+    sensor_stats(dfs, threshold)
 
     # Set sensible matplotlib defaults for plotting graphs
     set_mpl_params()
@@ -149,10 +150,10 @@ def report(input_datafiles, output_filename, **kwargs):
 #
 # Print some statistics about sensors, and drop those with only one packet
 #
-def sensor_stats(dfs):
+def sensor_stats(dfs, threshold=1):
     for k in list(dfs.keys()):
-        if len(dfs[k]) <= 1:
-            log.warn("Dropping sensor {}: too few packets".format(k))
+        if len(dfs[k]) <= threshold:
+            log.warn("Dropping sensor {0}: {1} packets <= threshold {2}".format(k, len(dfs[k]), threshold))
             dfs.pop(k, None)
 
     log.info(" ID      | Packets ")
@@ -271,7 +272,7 @@ def render_template(weeks, **kwargs):
 
 # Main function: parse command line arguments
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     # Handle arguments
     parser = argparse.ArgumentParser(description='Generate a report PDF from an input BAX datafile')
@@ -287,10 +288,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--names",       dest="names",        action="store", type=str, help="File containing sensor name mappings")
 
-    parser.add_argument('--series', nargs='+', type=str)
+    parser.add_argument("--series", nargs='+', type=str, default=['temperature', 'humidity', 'light'])
+
+    parser.add_argument("-t", "--threshold", dest="threshold", action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("-p", "--pdf", action="store_true", default=False, help="Output a PDF file")
+    group.add_argument("-p", "--pdf", action="store_true", default=True, help="Output a PDF file")
     group.add_argument("-k", "--htm", action="store_true", default=False, help="Output hypertext markup")
 
     parser.add_argument('--verbose', '-v', action='count')
@@ -303,7 +306,7 @@ if __name__ == "__main__":
     # Verbose logging 
     if args.verbose:
         if args.verbose >= 1:
-            strh.setLevel(logging.DEBUG)
+            strh.setLevel(logging.INFO)
         if args.verbose >= 2:
             logging.getLogger('datahandling.py').addHandler(strh)
         if args.verbose >= 3:
@@ -312,3 +315,5 @@ if __name__ == "__main__":
 
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
+    report(**{**vars(args)})
+
