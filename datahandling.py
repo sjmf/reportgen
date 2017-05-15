@@ -109,9 +109,9 @@ def df_from_csv(file_descriptor):
 #     SENSORID,SensorName
 # Accept:
 #   * Filename
-# Return: 
+# Return:
 #   * dict() object mapping sensor IDs to names
-def read_sensor_names(sensor_file): 
+def read_sensor_names(sensor_file):
     import csv
     with open(sensor_file) as f:
         return dict(csv.reader(f))
@@ -167,7 +167,7 @@ def diff_pir(dfs):
             .div(np.timedelta64(1, 's'))               \
             .astype('int64')
 
-        # Differentiate & fix wrapping at 2^16, 
+        # Differentiate & fix wrapping at 2^16,
         # then normalize to 0 and apply scale factor
         df_diff = d['PIREnergy'].diff()               \
             .apply(lambda x: x if x > 0 else x+65535) \
@@ -177,7 +177,7 @@ def diff_pir(dfs):
             * ಠ_ಠ
 
         # Calculate std. deviation
-        df_std = pd.rolling_std(df_diff, window=250) * σ
+        df_std = df_diff.rolling(window=250, center=False).std() * σ
 
         # Event triggers
         df_event = (df_diff > df_std).to_frame(name='Event')
@@ -237,11 +237,11 @@ def fix_humidity(dfs):
         df = dfs[i]
 
         # Determine if overflowing with window (this value low, previous values high)
-        needs_fix = pd.rolling_apply(
-            df[['Humidity']],
+        needs_fix = df[['Humidity']].rolling(
             window=5,
-            func=humidity_needsfix,
             center=True
+        ).apply(
+            func=humidity_needsfix
         ).loc[:, 'Humidity']
 
         # Apply fix to affected rows using temperature adjustment
