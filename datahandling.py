@@ -155,7 +155,6 @@ def date_range(df):
 # Fast PIR Differencing using Pandas array operations
 #
 def diff_pir(dfs):
-    ಠ_ಠ = 1e9  # scale factor to use
     σ = 5      # detect trigger above 5σ standard deviations
 
     for i in dfs:
@@ -173,8 +172,7 @@ def diff_pir(dfs):
             .apply(lambda x: x if x > 0 else x+65535) \
             .astype('float')                          \
             .div(df_time['DateTime'].astype('float'), axis='index') \
-            .diff() \
-            * ಠ_ಠ
+            .diff()
 
         # Calculate std. deviation
         df_std = df_diff.rolling(window=250, center=False).std() * σ
@@ -189,8 +187,14 @@ def diff_pir(dfs):
 
     # Scrub erroneous values:
     pir_threshold = 1500
-    dfs = {i: dfs[i].drop(dfs[i][dfs[i].PIRDiff > pir_threshold].index) for i in dfs}
-    dfs = {i: dfs[i].drop(dfs[i][dfs[i].PIRDiff < -pir_threshold].index) for i in dfs}
+
+    for i in dfs:
+        # Pull out view into dataframe, where rows are out of threshold, then zero them by updating the
+        # original with a new zero-filled data frame matching those indices
+        out_of_threshold = dfs[i][(dfs[i].PIRDiff > pir_threshold) | (dfs[i].PIRDiff < -pir_threshold)]
+        zeroed_values = pd.DataFrame(0, index=out_of_threshold.index, columns=['PIRDiff'])
+        dfs[i].update(zeroed_values)
+
     return dfs
 
 
