@@ -28,8 +28,7 @@ template_dir = os.path.join(sys.path[0], "templates")
 def report(input_datafiles, output_filename, **kwargs):
 
     # Parse arguments
-    output_pdf = bool(kwargs.pop('pdf', True))
-    # output_htm = bool(kwargs.pop('htm', False))
+    output_pdf = bool(kwargs.pop('pdf', True)) and not bool(kwargs.pop('htm', False))
 
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description', None)
