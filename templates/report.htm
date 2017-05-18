@@ -2,7 +2,7 @@
 {% for series in to_plot %}
 <!-- series -->
 <div class="cover">
-    <h1> {{ series[0].label.split(' ')[0] }} Report{% if location is not none %}   : {{ location }} {% endif %}</h1>
+    <h1> {{ series[0].label.split(' ')[0] }} Report{% if location is not none %}: {{ location }} {% endif %}</h1>
     <h2> Weeks beginning {{ period[0] }} to {{ period[1] }} </h2>
 {% if map is not none %}
     <img src="data:{{map.mime}};charset=utf-8;base64,{{ map.b64 }}" />

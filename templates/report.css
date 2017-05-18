@@ -11,10 +11,11 @@
         page-break-before: avoid;
     }
     .cover img {
-        width:100%;
-        margin:0;
-        padding:0;
-        max-height:180mm;
+        margin: 0;
+        padding: 0;
+        max-height: 18cm;
+        width: auto;
+        max-width: 100%;
     }
 }
 
