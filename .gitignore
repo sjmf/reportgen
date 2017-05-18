@@ -10,6 +10,7 @@ pip-selfcheck.json
 BAX_INFO.BIN
 pyvenv.cfg
 
+share/*
 lib/*
 bin/*
 !bin/BAXTest
