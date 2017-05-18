@@ -1,7 +1,7 @@
 numpy==1.12.1
-pandas==0.18.1
+pandas==0.20.1
 matplotlib
-weasyprint
+weasyprint==0.36
 jinja2
 flask
 flask-session
