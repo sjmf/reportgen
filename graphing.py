@@ -166,10 +166,11 @@ def weekly_graph(dfs: dict,
                  **kwargs):
 
     # Argument sanity check
-    if t_end - t_start > pd.Timedelta('6 days'):
+    if t_end - t_start > pd.Timedelta('7 days') - pd.Timedelta('1 microsecond'):
         raise ValueError("Date range passed is > 1 week: {0} to {1}".format(t_start, t_end))
 
-    rows = 8 // cols
+    cells = 8
+    rows = cells // cols
     colors = kwargs.pop('colors', graph.colors)
     spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
 
@@ -204,7 +205,7 @@ def weekly_graph(dfs: dict,
         #     log.debug("Skipping {0} as not enough data".format(t_start))
         #     continue
 
-        log.debug("Graphing {0} in cell {1} @{2},{3}".format(t_start, i, row, col))
+        log.debug("Graphing {0} in cell {1} @{2},{3}".format(start.date().strftime('%d %b'), i, row, col))
 
         for j in range(0, len(y_data)):
             # log.debug(str(j) + ',' + str(len(x_data)) + ',' + str(len(y_data)) + ',' + str(row) + ',' + str(col))

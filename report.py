@@ -55,7 +55,7 @@ def report(input_datafiles, output_filename, **kwargs):
     set_mpl_params()
 
     # Generate graphs using matplotlib for the following types:
-    weeks = get_week_range(t_start, t_end, df)
+    weeks = get_week_range(df)
     # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
     types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"),
              ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"),
@@ -183,24 +183,30 @@ def set_mpl_params():
 #
 # Generate date range of weeks inclusive of start and end
 #
-def get_week_range(t_start, t_end, df, freq='W-MON', **kwargs):
+def get_week_range(df):
     weeks = [
-        day for day in pd.date_range(
-            (t_start - pd.Timedelta('7 days')), t_end + pd.Timedelta('7 days'), 
-            freq=freq,
-            normalize=True, 
-            closed=None,
-            **kwargs
-        )
+        (w, w + pd.DateOffset(days=6) + pd.Timedelta('23:59:59'))
+        for w in list(df.groupby(pd.TimeGrouper(freq='W-MON', closed='left', label='left')).groups)
     ]
-
-    weeks = [(start, end - pd.Timedelta('1 day')) for start, end in zip(weeks, weeks[1:])]
 
     # Skip weeks with no data
     weeks = [w if sum([len(df.loc[w[0]:w[1]])]) > 0 else None for w in weeks]
     weeks = [k for k in weeks if k is not None]
 
     return weeks
+
+
+#
+# Generate date range of months inclusive of start and end
+#
+def get_month_range(df):
+
+    from pandas.tseries.offsets import MonthEnd, MonthBegin
+
+    return [
+        (m + MonthBegin(), m + MonthEnd() + pd.Timedelta('23:59:59'))
+        for m in list(df.groupby(pd.TimeGrouper(freq='M', closed='left', label='left')).groups)
+    ]
 
 
 #
@@ -239,7 +245,7 @@ def read_data(input_datafiles):
     df = pd.concat(p.map(dh.readfile, input_datafiles))
 
     log.info("Running final sort on merge...")
-    df.sort_index(inplace=True) # Sort again on merge
+    df.sort_index(inplace=True)  # Sort again on merge
 
     # Lots of subprocesses hanging around: clean 'em up:
     p.close()
