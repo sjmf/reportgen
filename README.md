@@ -4,7 +4,12 @@ This repository contains a set of python3 tools for generating matplotlib-based
 graphs from BuildAX datasets.
 
 ## Dependencies
-BAXTest tooling from the openmovement repository
+BAXTest tooling from the openmovement repository:
+
+```
+    git clone https://github.com/digitalinteraction/baxTest.git
+    make
+```
 
 ## Example call:
 ```
@@ -20,4 +25,13 @@ BAXTest tooling from the openmovement repository
 `apt-get install python-dev libxml2 libxml2-dev libxslt-dev`
 
 ## Python deps
-Install these using `pip3 install -r requirements.txt`:
+Install these using `pip3 install -r conf/requirements.txt`. You may wish to
+use a virtual environment like so:
+
+```
+    (sudo) pip3 install virtualenv
+    python3 -m venv ENV
+    . ./ENV/bin/activate
+    pip3 install -r conf/requirements.txt
+```
+
