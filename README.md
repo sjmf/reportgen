@@ -8,7 +8,8 @@ BAXTest tooling from the openmovement repository:
 
 ```
     git clone https://github.com/digitalinteraction/baxTest.git
-    make
+    cd baxTest && make && cd -
+    export BAX_TOOLS_DIR=./baxTest
 ```
 
 ## Example call:
