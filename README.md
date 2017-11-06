@@ -23,7 +23,7 @@ BAXTest tooling from the openmovement repository:
 ```
 
 ## APT deps
-`apt-get install python-dev libxml2 libxml2-dev libxslt-dev`
+`apt-get install python-dev libxml2 libxml2-dev libxslt-dev python3-tk`
 
 ## Python deps
 Install these using `pip3 install -r conf/requirements.txt`. You may wish to
