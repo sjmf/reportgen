@@ -547,41 +547,46 @@ def monthly_graph(dfs: dict,
 
 
 #
-# Generate test data for temporal graph types
-#
-def gen_test_data(nsensors=10):
-    import random, string
-
-    def get_test_id():
-        sample = string.hexdigits[:10] + string.hexdigits[-6:]
-        return "42" + "".join([random.choice(sample) for _ in range(6)])
-
-    def get_test_data(ndays=100):
-        date_start = datetime.now() - pd.Timedelta(str(ndays) + ' days')
-
-        df = pd.DataFrame({'date': [date_start + timedelta(hours=x) for x in range(ndays * 24)],
-                           'test': pd.Series(np.random.randn(ndays * 24))})
-        return df.set_index('date')
-
-    return {get_test_id(): get_test_data() for _ in range(nsensors)}
-
-
-#
 # Test operation
 #
 def test():
-    import webbrowser
+    import random
+    random.seed(123456)
+
+    # Generate test data for temporal graph types
+    def gen_test_data(nsensors=10):
+        import string
+
+        def get_test_id():
+            sample = string.hexdigits[:10] + string.hexdigits[-6:]
+            return "42" + "".join([random.choice(sample) for _ in range(6)])
+
+        def get_test_data(ndays=100):
+            date_start = datetime.now() - pd.Timedelta(str(ndays) + ' days')
+
+            df = pd.DataFrame({'date': [date_start + timedelta(hours=x) for x in range(ndays * 24)],
+                               'test': pd.Series(np.random.randn(ndays * 24))})
+            return df.set_index('date')
+
+        return {get_test_id(): get_test_data() for _ in range(nsensors)}
+
+    # Display the graph in the system default browser
+    def show(svg):
+        import webbrowser
+        webbrowser.open_new_tab("data:image/svg+xml;charset=UTF-8;base64," + svg)
+
 
     # Test multiaxis graph:
     n = 10000
-    multiaxis_graph(np.array(range(0, n)),
+    svg = multiaxis_graph(np.array(range(0, n)),
                     [np.sort(np.random.normal(0, 0.2, size=n)),
                      np.sort(np.random.power(0.1, size=n)),
                      np.sort(np.random.random(size=n))],
                     x_label="n",
                     title="Graph test with Matplotlib (probabilities)",
                     y_series=["Normal", "Power", "Random"],
-                    twin_x=True, legend=True)
+                    twin_x=True, legend=True, savefig=True)
+    show(svg)
 
     # Gen data to test temporal graphs
     set_mpl_params()
@@ -590,11 +595,11 @@ def test():
 
     # Test weekly graph and open the result in the browser
     svg = weekly_graph(dfs, 'test', 'Test Data', when - pd.Timedelta('6 days'), when)
-    webbrowser.open_new_tab("data:image/svg+xml;charset=UTF-8;base64," + svg)
+    show(svg)
 
     # Test monthly graph:
     svg = monthly_graph(dfs, 'test', 'Test Data', when, when + MonthEnd(), hspace=.1)
-    webbrowser.open_new_tab("data:image/svg+xml;charset=UTF-8;base64," + svg)
+    show(svg)
 
 
 # Main operation
