@@ -81,15 +81,15 @@ def get_sorted_labels(handles, labels):
 # causes the yaxis to center on 0 if plotted 2 plots with no y_data (0 range). Therefore,
 # restrict the y-axis ticks manually using set_yticks and calculate the range pre-plot:
 #
-def get_yaxis_range(dfs, series, t_end, pad_pc=10):
+def get_yaxis_range(dfs, series, t_end, freq='M', pad_pc=10):
 
     rng = list()
     for frame in dfs:
         try:
-            mini = dfs[frame].groupby(pd.TimeGrouper(freq='M'))[series].agg(['min']) \
+            mini = dfs[frame].groupby(pd.TimeGrouper(freq=freq))[series].agg(['min']) \
                 .rename(columns={'min': series}).loc[t_end.date()][series]
 
-            maxi = dfs[frame].groupby(pd.TimeGrouper(freq='M'))[series].agg(['max']) \
+            maxi = dfs[frame].groupby(pd.TimeGrouper(freq=freq))[series].agg(['max']) \
                 .rename(columns={'max': series}).loc[t_end.date()][series]
 
             rng.append((mini, maxi))
@@ -253,9 +253,12 @@ def weekly_graph(dfs: dict,
     rows = cells // cols
     colors = kwargs.pop('colors', graph.colors)
     spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
+    pad_pc = kwargs.pop('pad_pc', 10)
+
+    rng = get_yaxis_range(dfs, series, t_end, freq='W', pad_pc=pad_pc)
 
     # Eight subplots, returned as a 2-d array
-    fig, axarr = plt.subplots(rows, cols, sharey=True)
+    fig, axarr = plt.subplots(rows, cols) #, sharey=True)
     fig.subplots_adjust(hspace=0, wspace=0)
     fig.autofmt_xdate()
 
@@ -292,7 +295,9 @@ def weekly_graph(dfs: dict,
             ax.plot(x_data[j], y_data[j], color=colors[j % len(colors)])
 
         # Force 24h graph time period
+        ax.set_autoscale_on(False)
         ax.set_xlim(start, end)
+        ax.set_ylim(rng[0], rng[1])
 
         ax.set_title(
             # 'Axis [{0},{1}]'.format(row, col),
@@ -301,18 +306,22 @@ def weekly_graph(dfs: dict,
             loc='left', x=0.05, y=0.80)
 
         if grid:
-            ax.grid(alpha=0.25)
+            ax.grid(True, which="both", alpha=0.25)
+
+        # Turn off y-axis tick labels in columns that aren't leftmost:
+        if col > 0:
+            [i.set_visible(False) for i in ax.yaxis.get_ticklabels()]
 
         # Set spines for this grid box (the outside lines)
         for sp in spines.keys():
             ax.spines[sp].set_visible(spines[sp])
             ax.spines[sp].set_alpha(spline_alpha)
 
-        i += 1
-
         # Set text/label alpha
         [l.set_alpha(txt_alpha) for l in ax.xaxis.get_ticklabels()]
         [l.set_alpha(txt_alpha) for l in ax.yaxis.get_ticklabels()]
+
+        i += 1
 
     # Set spines for legend cell
     for sp in spines.keys():
@@ -321,6 +330,7 @@ def weekly_graph(dfs: dict,
 
     # Fine-tune figure
     # Set labels on left column plots y-axis
+    # We do this separately to the above loop because that loop skips the legend cell!
     for row in range(0, rows):
         axarr[row][0].set_ylabel(y_label)
 
