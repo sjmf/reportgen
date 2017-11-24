@@ -10,10 +10,10 @@ import mimetypes
 import multiprocessing
 import time
 import weasyprint
-import matplotlib as mpl
 import pandas as pd
 
 import datahandling as dh
+import graphing as gr
 from graphing import weekly_graph
 
 # Tell me what you're doing, scripts :)
@@ -52,7 +52,7 @@ def report(input_datafiles, output_filename, **kwargs):
     sensor_stats(dfs, threshold)
 
     # Set sensible matplotlib defaults for plotting graphs
-    set_mpl_params()
+    gr.set_mpl_params()
 
     # Generate graphs using matplotlib for the following types:
     weeks = get_week_range(df)
@@ -161,23 +161,6 @@ def sensor_stats(dfs, threshold=1):
         log.info("{0:8} | {1}".format(k[:8], len(dfs[k])))
 
     return dfs
-
-
-#
-# Set appropriate matplotlib parameters
-#
-def set_mpl_params():
-    mpl.style.use('seaborn-bright')  # 'fivethirtyeight')
-    mpl.rcParams['lines.linewidth'] = 1
-    mpl.rcParams['figure.figsize'] = (8, 12)  # (3,2)
-    mpl.rcParams['axes.titlesize'] = 'large'
-    mpl.rcParams['axes.labelsize'] = 'small'
-    mpl.rcParams['xtick.labelsize'] = 'small'
-    mpl.rcParams['ytick.labelsize'] = 'small'
-    mpl.rcParams['legend.fontsize'] = 'small'
-    mpl.rcParams['legend.frameon'] = False
-    mpl.rcParams['savefig.dpi'] = 100.0
-    mpl.rcParams['font.size'] = 10.0
 
 
 #
