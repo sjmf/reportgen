@@ -11,8 +11,8 @@ import logging
 import math
 
 from mpl_toolkits.axes_grid1 import host_subplot
-from matplotlib.ticker import MaxNLocator
-from pandas.tseries.offsets import MonthEnd, MonthBegin
+# from matplotlib.ticker import MaxNLocator
+from pandas.tseries.offsets import MonthEnd, MonthBegin, Week
 from datetime import datetime, timedelta
 from io import BytesIO
 from os import makedirs
@@ -83,25 +83,33 @@ def get_sorted_labels(handles, labels):
 #
 def get_yaxis_range(dfs, series, t_end, freq='M', pad_pc=10):
 
+    log.debug("End: {} ".format(t_end))
+
     rng = list()
     for frame in dfs:
         try:
-            mini = dfs[frame].groupby(pd.TimeGrouper(freq=freq))[series].agg(['min']) \
-                .rename(columns={'min': series}).loc[t_end.date()][series]
+            mini = dfs[frame].groupby(pd.Grouper(freq=freq))[series].agg(['min']).rename(columns={'min': series})
+            log.debug("indices: {}".format(mini.index))
+            mini = mini.loc[t_end.date()][series]
 
-            maxi = dfs[frame].groupby(pd.TimeGrouper(freq=freq))[series].agg(['max']) \
-                .rename(columns={'max': series}).loc[t_end.date()][series]
+            maxi = dfs[frame].groupby(pd.Grouper(freq=freq))[series].agg(['max']).rename(columns={'max': series})
+            maxi = maxi.loc[t_end.date()][series]
 
             rng.append((mini, maxi))
 
         except KeyError as e:
             log.warning("Skipped {0} in range as there was no data for {1}".format(frame, t_end.date()))
-            log.warning("The error was: {}".format(e))
+            log.debug("The error was: {}".format(e))
 
     rng = list(zip(*rng))
 
     # Pad range by percentage:
     rng = [min(rng[0]), max(rng[1])]
+
+    # NB: if you get an "IndexError: list index out of range" from an empty [] rng here, plus are seeing this
+    #     after several warning saying: 'the label [2016-12-12] is not in the [index]', you probably didn't pass a
+    #     t_end which lands on the same day as the pd.Grouper(freq='W') aggregates to!
+
     diff = rng[1] - rng[0]
     return [math.floor(rng[0] - (diff * (pad_pc / 100))), math.ceil(rng[1] + (diff * (pad_pc / 100)))]
 
@@ -249,16 +257,24 @@ def weekly_graph(dfs: dict,
     if t_end - t_start > pd.Timedelta('7 days') - pd.Timedelta('1 microsecond'):
         raise ValueError("Date range passed is > 1 week: {0} to {1}".format(t_start, t_end))
 
+    log.info("{0: <8} - {1} to {2}".format(series, str(t_start), str(t_end)))
+
     cells = 8
     rows = cells // cols
     colors = kwargs.pop('colors', graph.colors)
     spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
     pad_pc = kwargs.pop('pad_pc', 10)
 
+    # freq DOW must match DOW for t_end + 1 day (unless t_end time == 00:00:00)
+    # Clamp range: always display the whole week regardless of the data passed
+    t_start = t_start.date() - Week(weekday=0) if t_start.weekday() > 0 else pd.Timestamp(t_start.date())
+    t_end = t_start + pd.Timedelta('7 days') - pd.Timedelta('1 microsecond')
+
+    # 'W' alone is a synonym for 'W-SUN'
     rng = get_yaxis_range(dfs, series, t_end, freq='W', pad_pc=pad_pc)
 
     # Eight subplots, returned as a 2-d array
-    fig, axarr = plt.subplots(rows, cols) #, sharey=True)
+    fig, axarr = plt.subplots(rows, cols)  # , sharey=True)
     fig.subplots_adjust(hspace=0, wspace=0)
     fig.autofmt_xdate()
 
@@ -268,9 +284,8 @@ def weekly_graph(dfs: dict,
     if cols == 1:
         axarr = [[ax] for ax in axarr]
 
-    plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
-
-    log.info("{0: <8} - {1} to {2}".format(series, str(t_start), str(t_end)))
+    # Commented out as without sharey=True different ticks are sometimes generated
+    # plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
 
     # Start plotting at cell 1 (cell zero is legend)
     i = 1
@@ -398,8 +413,8 @@ def monthly_graph(dfs: dict,
         raise ValueError("Date range passed is > 1 month: {0} to {1}".format(t_start, t_end))
 
     # Clamp range: always display the whole month regardless of the data passed
-    t_start = t_start + pd.Timedelta('1 microsecond') - MonthBegin()
-    t_end = t_end - pd.Timedelta('1 microsecond') + MonthEnd()
+    t_start = datetime(t_start.year, t_start.month, 1).date()
+    t_end = t_start + MonthEnd()
 
     # Calculate date range and required cells
     date_range = pd.date_range(t_start - pd.Timedelta('7 days'), t_end,
@@ -410,11 +425,11 @@ def monthly_graph(dfs: dict,
 
     colors = kwargs.pop('colors', graph.colors)
     spines = kwargs.pop('spines', {'top': True, 'bottom': True, 'left': True, 'right': True})
-    hspace = kwargs.pop('hspace', 0)
+    hspace = kwargs.pop('hspace', .1)
     wspace = kwargs.pop('wspace', 0)
     pad_pc = kwargs.pop('pad_pc', 10)
 
-    rng = get_yaxis_range(dfs, series, t_end, pad_pc)
+    rng = get_yaxis_range(dfs, series, t_end, pad_pc=pad_pc)
 
     # Subplots, returned as a 2-d array
     fig, axarr = plt.subplots(rows, cols)
@@ -557,34 +572,36 @@ def monthly_graph(dfs: dict,
 
 
 #
+# Generate test data for temporal graph types
+def gen_test_data(nsensors=10):
+    import string
+    import random
+
+    def get_test_id():
+        sample = string.hexdigits[:10] + string.hexdigits[-6:]
+        return "42" + "".join([random.choice(sample) for _ in range(6)])
+
+    def get_test_data(ndays=100):
+        date_start = datetime.now() - pd.Timedelta(str(ndays) + ' days')
+
+        df = pd.DataFrame({'date': [date_start + timedelta(hours=x) for x in range(ndays * 24)],
+                           'test': pd.Series(np.random.normal(0, 0.2, size=ndays * 24))})
+        return df.set_index('date')
+
+    return {get_test_id(): get_test_data() for _ in range(nsensors)}
+
+
+#
 # Test operation
 #
 def test():
     import random
     random.seed(123456)
 
-    # Generate test data for temporal graph types
-    def gen_test_data(nsensors=10):
-        import string
-
-        def get_test_id():
-            sample = string.hexdigits[:10] + string.hexdigits[-6:]
-            return "42" + "".join([random.choice(sample) for _ in range(6)])
-
-        def get_test_data(ndays=100):
-            date_start = datetime.now() - pd.Timedelta(str(ndays) + ' days')
-
-            df = pd.DataFrame({'date': [date_start + timedelta(hours=x) for x in range(ndays * 24)],
-                               'test': pd.Series(np.random.randn(ndays * 24))})
-            return df.set_index('date')
-
-        return {get_test_id(): get_test_data() for _ in range(nsensors)}
-
     # Display the graph in the system default browser
     def show(svg):
         import webbrowser
         webbrowser.open_new_tab("data:image/svg+xml;charset=UTF-8;base64," + svg)
-
 
     # Test multiaxis graph:
     n = 10000
@@ -600,24 +617,22 @@ def test():
 
     # Gen data to test temporal graphs
     set_mpl_params()
-    dfs = gen_test_data(nsensors=10)
-    when = datetime.combine(datetime.now().date(), datetime.min.time())
+    dfs = gen_test_data(nsensors=5)
+    when = datetime.combine(datetime.now().date(), datetime.max.time())
+
+    log.info("Today: {0}".format(when))
 
     # Test weekly graph and open the result in the browser
     svg = weekly_graph(dfs, 'test', 'Test Data', when - pd.Timedelta('6 days'), when)
     show(svg)
 
     # Test monthly graph:
-    svg = monthly_graph(dfs, 'test', 'Test Data', when, when + MonthEnd(), hspace=.1)
+    svg = monthly_graph(dfs, 'test', 'Test Data', when, when + MonthEnd())
     show(svg)
 
 
 # Main operation
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-
-    strh = logging.StreamHandler()
-    strh.setLevel(logging.DEBUG)
-    log.addHandler(strh)
 
     test()

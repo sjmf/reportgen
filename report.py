@@ -14,7 +14,7 @@ import pandas as pd
 
 import datahandling as dh
 import graphing as gr
-from graphing import weekly_graph
+from graphing import weekly_graph, monthly_graph
 
 # Tell me what you're doing, scripts :)
 log = logging.getLogger(__name__)
@@ -25,17 +25,19 @@ template_dir = os.path.join(sys.path[0], "templates")
 #
 # Generate a report PDF from an input BAX datafile list
 #
-def report(input_datafiles, output_filename, **kwargs):
+def report(input_datafiles, **kwargs):
 
     # Parse arguments
     output_pdf = bool(kwargs.pop('pdf', True)) and not bool(kwargs.pop('htm', False))
 
+    output_file = kwargs.pop('output_file', 'out.pdf')
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description', None)
     location = kwargs.pop('location', None)
     threshold = kwargs.pop('threshold', None)
     series = kwargs.pop('series', None)
     names = kwargs.pop('names', None)
+    plot_months = kwargs.pop('months', None)
 
 #    log.debug("File list: " + '\n'.join(input_datafiles))
 
@@ -44,8 +46,8 @@ def report(input_datafiles, output_filename, **kwargs):
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
 
     if names:
-        name_map = dh.read_sensor_names(names)  # Read in names
-        dfs = dh.apply_sensor_names(dfs, name_map) # Apply names
+        name_map = dh.read_sensor_names(names)      # Read in names
+        dfs = dh.apply_sensor_names(dfs, name_map)  # Apply names
         log.debug(name_map)
 
     # Print statistics
@@ -55,7 +57,8 @@ def report(input_datafiles, output_filename, **kwargs):
     gr.set_mpl_params()
 
     # Generate graphs using matplotlib for the following types:
-    weeks = get_week_range(df)
+    periods = get_month_range(df) if plot_months else get_week_range(df)
+
     # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
     types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"),
              ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"),
@@ -65,21 +68,17 @@ def report(input_datafiles, output_filename, **kwargs):
         s_list = ['temperature', 'humidity', 'light', 'movement', 'rssi', 'battery']
         types = [types[i] for i, t in enumerate(s_list) if t in series]
 
-    # Comment out else, plot everything by default:
-    # else:
-    #    types = types[:3]  # only temp + humid + light by default
-
     log.debug(types)
-    log.info("Generating graphs for period {0} to {1}".format(weeks[0][0], weeks[-1:][0][0]))
+    log.info("Generating graphs for period {0} to {1}".format(periods[0][0], periods[-1:][0][0]))
 
     # TODO: Replace this call with a multiprocessing threadpool + map?
     # Single-threaded: 46.72s
     # *typestring: (series, y_label) from types array
     # *period: (t_start, t_end)
     figs = [[
-            weekly_graph(dfs, *typestring, *period,
-                         legend_cols=1 if names else 3)
-            for period in weeks
+            monthly_graph(dfs, *typestring, *p) if plot_months else
+            weekly_graph(dfs, *typestring, *p, legend_cols=1 if names else 3)
+            for p in periods
         ] for typestring in types]
 
 # e.g. ('Light',
@@ -99,7 +98,6 @@ def report(input_datafiles, output_filename, **kwargs):
 #    figs = p.map(plot_weekly, series)
 #    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
 
-
     # Format graphs and metadata into a data structure for the jinja2 templater
     # Generates a structure of the form: to_plot[week][series][data]
     # e.g. to_plot[0][0]['label'] == 'Temperature ˚C'
@@ -111,7 +109,7 @@ def report(input_datafiles, output_filename, **kwargs):
                 'data':     d[i],
                 't_start':  w[0].date(),
                 't_end':    w[1].date()
-            } for i, w in enumerate(weeks)
+            } for i, w in enumerate(periods)
         ] for t, l, d in zip(*zip(*types), figs)
     ]
 
@@ -122,7 +120,7 @@ def report(input_datafiles, output_filename, **kwargs):
         log.debug('map type is ' + str(loc_map[1]))
 
     output = render_template(
-        weeks=weeks,
+        weeks=periods,
         to_plot=to_plot,
         location=location,
         description=description,
@@ -131,18 +129,18 @@ def report(input_datafiles, output_filename, **kwargs):
 
     log.debug(output[:150].replace('\n', ' '))
 
-    log.info("Writing to {1} file {0}".format(output_filename, ('PDF' if output_pdf else 'HTM')))
+    log.info("Writing to {1} file {0}".format(output_file, ('PDF' if output_pdf else 'HTM')))
 
     if output_pdf:
         # write to PDF
         print_css = weasyprint.CSS(os.path.join(template_dir, "report.css"))
         # debug_css = weasyprint.CSS(os.path.join(template_dir, "debug.css"))
         htm = weasyprint.HTML(string=output, base_url='.')
-        htm.write_pdf(target=output_filename, zoom=2, stylesheets=[print_css])  # , debug_css])
+        htm.write_pdf(target=output_file, zoom=2, stylesheets=[print_css])  # , debug_css])
 
     else:
         # write to HTML:
-        with open(output_filename, 'w+') as t:
+        with open(output_file, 'w+') as t:
             t.write(output)
 
 
@@ -152,7 +150,7 @@ def report(input_datafiles, output_filename, **kwargs):
 def sensor_stats(dfs, threshold=1):
     for k in list(dfs.keys()):
         if len(dfs[k]) <= threshold:
-            log.warn("Dropping sensor {0}: {1} packets <= threshold {2}".format(k, len(dfs[k]), threshold))
+            log.warning("Dropping sensor {0}: {1} packets <= threshold {2}".format(k, len(dfs[k]), threshold))
             dfs.pop(k, None)
 
     log.info(" ID      | Packets ")
@@ -183,7 +181,6 @@ def get_week_range(df):
 # Generate date range of months inclusive of start and end
 #
 def get_month_range(df):
-
     from pandas.tseries.offsets import MonthEnd, MonthBegin
 
     return [
@@ -267,24 +264,22 @@ if __name__ == "__main__":
 
     # Required args:
     parser.add_argument("input_datafiles", nargs='+', action="store", type=str, help="Input file path list (CSV or BIN BAX data)")
-    parser.add_argument("output_filename", action="store", type=str, help="Output file path (PDF report)")
 
     # Optional args
-    parser.add_argument("--map",         dest="map_filename", action="store", type=str, help="Image file path")
-    parser.add_argument("--location",    dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
-    parser.add_argument("--description", dest="description",  action="store", type=str, help="Verbose description to add to report")
-
-    parser.add_argument("--names",       dest="names",        action="store", type=str, help="File containing sensor name mappings")
-
-    parser.add_argument("--series", nargs='+', type=str, default=['temperature', 'humidity', 'light'])
-
-    parser.add_argument("-t", "--threshold", dest="threshold", action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
+    parser.add_argument("--outfile",     "-o", dest="output_file",  action="store", type=str, default='out.pdf', help="Output file path (report)")
+    parser.add_argument("--map",         "-m", dest="map_filename", action="store", type=str, help="Image file path")
+    parser.add_argument("--location",    "-l", dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
+    parser.add_argument("--description", "-d", dest="description",  action="store", type=str, help="Verbose description to add to report")
+    parser.add_argument("--names",       "-n", dest="names",        action="store", type=str, help="File containing sensor name mappings")
+    parser.add_argument("--threshold",   "-t", dest="threshold",    action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
+    parser.add_argument("--months",      "-a", dest="months",       action="store_true",      help="Plot months instead of weeks")
+    parser.add_argument("--series",      "-s", nargs='+', type=str, default=['temperature', 'humidity', 'light'])
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--pdf", action="store_true", default=True, help="Output a PDF file")
     group.add_argument("-k", "--htm", action="store_true", default=False, help="Output hypertext markup")
 
-    parser.add_argument('--verbose', '-v', action='count')
+    parser.add_argument('--verbose', '-v', dest="verbose", action="count")
 
     # Parse 'em 
     args = parser.parse_args()
@@ -294,12 +289,15 @@ if __name__ == "__main__":
     # Verbose logging 
     if args.verbose:
         if args.verbose >= 1:
-            strh.setLevel(logging.INFO)
+            strh.setLevel(logging.DEBUG)
+            logging.getLogger(__name__).setLevel(logging.DEBUG)
+            log.debug("Verbosity: 1")
         if args.verbose >= 2:
-            logging.getLogger('datahandling.py').addHandler(strh)
+            logging.getLogger('datahandling').setLevel(logging.DEBUG)
+            log.debug("Verbosity: 2")
         if args.verbose >= 3:
-            logging.getLogger('graphing.py').addHandler(strh)
-            logging.getLogger('graphing.py').setLevel(logging.INFO)
+            logging.getLogger('graphing').setLevel(logging.DEBUG)
+            log.debug("Verbosity: 3")
 
     # Run report on the input args (with sensible default series)
     log.debug(vars(args))
