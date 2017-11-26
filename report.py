@@ -7,8 +7,6 @@ import base64
 import jinja2
 import logging
 import mimetypes
-import multiprocessing
-import time
 import weasyprint
 import pandas as pd
 
@@ -42,7 +40,7 @@ def report(input_datafiles, **kwargs):
 #    log.debug("File list: " + '\n'.join(input_datafiles))
 
     # Perform data read-in using the datahandling module and apply corrections
-    df, dfs, t_start, t_end = read_data(input_datafiles)
+    df, dfs, t_start, t_end = dh.read_data(input_datafiles)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
 
     if names:
@@ -203,45 +201,6 @@ def read_map(map_filename):
     except (FileNotFoundError, TypeError):
         log.error("Map not found: '"+map_filename+"'")
         return None, None
-
-
-#
-# Read a BuildAX datafile. Accept:
-#     * List of datafiles
-#  and return:
-#     * a Pandas DataFrame with corrections applied
-#   * start and end date/time values for the period
-#
-def read_data(input_datafiles):
-    pd.set_option('chained_assignment', None)  # Hush up, SettingWithCopyWarning
-
-    start_time = time.time()
-    # Use a generator to concatenate datafiles into a list 
-    # Single threaded: 60.73 seconds 
-    # df = pd.concat( (dh.readfile(infile) for infile in input_datafiles) )
-
-    # Multithreaded:  19.43 seconds. Winner!
-    p = multiprocessing.Pool()
-    df = pd.concat(p.map(dh.readfile, input_datafiles))
-
-    log.info("Running final sort on merge...")
-    df.sort_index(inplace=True)  # Sort again on merge
-
-    # Lots of subprocesses hanging around: clean 'em up:
-    p.close()
-    p.join()
-    
-    log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
-
-    # Extract sensor IDs / names and split into dict by sensor ID
-    t_start, t_end = (df.index.min(), df.index.max())
-    # names = dh.unique_sensors(df)
-    dfs = dh.split_by_id(df)
-
-    # Apply fixes to the data and diff the PIR movement
-    dfs = dh.clean_data(dfs)
-
-    return df, dfs, t_start, t_end
 
 
 #

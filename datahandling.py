@@ -3,6 +3,8 @@
 # 
 import pandas as pd
 import numpy as np
+import multiprocessing
+import time
 import logging
 import mimetypes
 import subprocess
@@ -15,8 +17,44 @@ TOOLS_DIR = os.environ.get('BAX_TOOLS_DIR', os.path.join(os.environ['HOME'], 'ba
 if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
     raise FileNotFoundError("BuildAX tooling missing in {}".format(TOOLS_DIR))
 
-# STFU SettingWithCopyWarning
-# pd.set_option('chained_assignment', None)
+
+#
+# Read a BuildAX datafile. Accept:
+#     * List of datafiles
+#  and return:
+#     * a Pandas DataFrame with corrections applied
+#   * start and end date/time values for the period
+#
+def read_data(input_datafiles):
+    pd.set_option('chained_assignment', None)  # Hush up, SettingWithCopyWarning
+
+    start_time = time.time()
+    # Use a generator to concatenate datafiles into a list
+    # Single threaded: 60.73 seconds
+    # df = pd.concat( (dh.readfile(infile) for infile in input_datafiles) )
+
+    # Multithreaded:  19.43 seconds. Winner!
+    p = multiprocessing.Pool()
+    df = pd.concat(p.map(readfile, input_datafiles))
+
+    log.info("Running final sort on merge...")
+    df.sort_index(inplace=True)  # Sort again on merge
+
+    # Lots of subprocesses hanging around: clean 'em up:
+    p.close()
+    p.join()
+
+    log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
+
+    # Extract sensor IDs / names and split into dict by sensor ID
+    t_start, t_end = (df.index.min(), df.index.max())
+    # names = dh.unique_sensors(df)
+    dfs = split_by_id(df)
+
+    # Apply fixes to the data and diff the PIR movement
+    dfs = clean_data(dfs)
+
+    return df, dfs, t_start, t_end
 
 
 #
