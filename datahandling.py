@@ -41,18 +41,23 @@ def read_data(input_datafiles):
     df.sort_index(inplace=True)  # Sort again on merge
 
     # Lots of subprocesses hanging around: clean 'em up:
+    log.info("Waiting for subprocesses to finish...")
     p.close()
     p.join()
 
     log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
 
+    start_time = time.time()
     # Extract sensor IDs / names and split into dict by sensor ID
     t_start, t_end = (df.index.min(), df.index.max())
     # names = dh.unique_sensors(df)
     dfs = split_by_id(df)
 
     # Apply fixes to the data and diff the PIR movement
+    log.info("Applying data fixes:")
     dfs = clean_data(dfs)
+
+    log.info("+ Data fixes applied in {0:.2f}s".format(time.time() - start_time))
 
     return df, dfs, t_start, t_end
 
@@ -168,6 +173,19 @@ def apply_sensor_names(dfs, name_map):
 #
 def unique_sensors(df):
     return [name.upper() for name in df.Name.unique()]
+
+
+#
+# Threshold sensors: remove sensors with fewer packets than the given threshold
+#
+def threshold_sensors(dfs, threshold=1):
+    # Iterate over the sensors in dfs and drop the bad ones
+    for k in list(dfs.keys()):
+        if len(dfs[k]) <= threshold:
+            log.warning("Dropping sensor {0}: {1} packets <= threshold {2}".format(k, len(dfs[k]), threshold))
+            dfs.pop(k, None)
+
+    return dfs
 
 
 #
@@ -322,9 +340,16 @@ def clean_data(dfs):
         dfs[i].loc[:, 'Humidity'] = dfs[i].loc[:, 'Humidity']\
             .apply(lambda d: d if (d > 0.0) and (d < 101.0) else np.NaN)
 
+    log.debug("Fixing light...")
     dfs = fix_light(dfs)
+
+    log.debug("Fixing humidity...")
     dfs = fix_humidity(dfs)
+
+    log.debug("Fixing temperature (/10)...")
     dfs = fix_temp(dfs)
+
+    log.debug("Differencing PIR...")
     dfs = diff_pir(dfs)
     
     return dfs

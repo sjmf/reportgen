@@ -48,8 +48,11 @@ def report(input_datafiles, **kwargs):
         dfs = dh.apply_sensor_names(dfs, name_map)  # Apply names
         log.debug(name_map)
 
+    # Threshold sensors
+    dfs = dh.threshold_sensors(dfs, threshold)
+
     # Print statistics
-    sensor_stats(dfs, threshold)
+    sensor_stats(dfs)
 
     # Set sensible matplotlib defaults for plotting graphs
     gr.set_mpl_params()
@@ -145,11 +148,7 @@ def report(input_datafiles, **kwargs):
 #
 # Print some statistics about sensors, and drop those with only one packet
 #
-def sensor_stats(dfs, threshold=1):
-    for k in list(dfs.keys()):
-        if len(dfs[k]) <= threshold:
-            log.warning("Dropping sensor {0}: {1} packets <= threshold {2}".format(k, len(dfs[k]), threshold))
-            dfs.pop(k, None)
+def sensor_stats(dfs):
 
     log.info(" ID      | Packets ")
     log.info("=========|=========")
