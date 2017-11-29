@@ -3,7 +3,8 @@
 <!-- series -->
 <div class="cover">
     <h1> {{ series[0].label.split(' ')[0] }} Report{% if location is not none %}: {{ location }} {% endif %}</h1>
-    <h2> Weeks beginning {{ period[0] }} to {{ period[1] }} </h2>
+    <h2> {% if not plot_months %}Weeks beginning{% endif %}
+            {{ period[0] }} to {{ period[1] }} </h2>
 {% if map is not none %}
     <img src="data:{{map.mime}};charset=utf-8;base64,{{ map.b64 }}" />
 {% endif %}
@@ -11,15 +12,18 @@
     <p class="description">{{ description }}</p>
 {% endif %}
 </div>
-{% for week in series %}
-<h2>{{week.label}} {% if location is not none %}@ {{location}}{% endif %}</h1>
+
+{% for period in series %}
+<h2>{{period.label}} {% if location is not none %}@ {{location}}{% endif %}</h1>
 <h3>Time period: 
-    <em>{{ week.t_start.strftime('%Y-%m-%d') }} to {{ week.t_end.strftime('%Y-%m-%d') }}</em>
+    <em>{{ period.t_start | datetimeformat(date_format) }}
+        {% if not plot_months %}to {{ period.t_end | datetimeformat(date_format) }}{% endif %}</em>
 </h3>
 
 <figure>
-    <img src="data:image/svg+xml;charset=utf-8;base64,{{week.data}}" />
+    <img src="data:image/svg+xml;charset=utf-8;base64,{{period.data}}" />
     <!--<figcaption></figcaption>-->
 </figure>
-{% endfor %}
-{% endfor %}
+{% endfor %} {# END for period in series #}
+
+{% endfor %} {# END for series in to_plot #}

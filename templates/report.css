@@ -17,6 +17,12 @@
         width: auto;
         max-width: 100%;
     }
+    #aggregates h2, p {
+        font-size: 12px;
+    }
+    #aggregates table, dl {
+        font-size: 8px;
+    }
 }
 
 html { font-family: sans; }

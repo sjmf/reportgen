@@ -1,0 +1,16 @@
+
+<h1>Statistical Aggregates</h1>
+<p>A note on these stats:</p>
+<dl>
+    <dt>Averages:</dt>          <dd>The mean average is taken for each sensor. <br />
+                                    The sensor IDs with the maximum and minimum *averages* (e.g. Warmest & Coldest)
+                                    are then displayed in the table.</dd>
+    <dt>Maximum/Minimum:</dt>   <dd>Overall Maximum and Minimum (e.g. the warmest and coldest values on record) from
+                                    any sensor</dd>
+    <dt>Ranges:</dt>            <dd>Ranges are calculated between the overall maximum and minimum (see above)</dd>
+</dl>
+
+{% for table in table_list %}
+<h2>{{ table[0]|datetimeformat('%B %Y') }}</h2>
+{{ table[1].__html__() }}
+{% endfor %}

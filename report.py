@@ -12,6 +12,7 @@ import pandas as pd
 
 import datahandling as dh
 import graphing as gr
+import aggregate as ag
 from graphing import weekly_graph, monthly_graph
 
 # Tell me what you're doing, scripts :)
@@ -116,6 +117,9 @@ def report(input_datafiles, **kwargs):
         ] for t, l, d in zip(*zip(*types), figs)
     ]
 
+    # Generate summary aggregate tables for end of report:
+    table_list = perform_aggregation(df, 'M' if plot_months else 'W')
+
     # Read in the map
     loc_map = None
     if map_filename is not None:
@@ -123,10 +127,13 @@ def report(input_datafiles, **kwargs):
         log.debug('map type is ' + str(loc_map[1]))
 
     output = render_template(
-        weeks=periods,
+        periods=periods,
         to_plot=to_plot,
         location=location,
         description=description,
+        plot_months=plot_months,
+        date_format='%B %Y' if plot_months else '%Y-%m-%d',
+        table_list=table_list,
         map=dict(zip(['b64', 'mime'], loc_map)) if map_filename is not None and loc_map[1] is not None else None
     )
 
@@ -145,6 +152,25 @@ def report(input_datafiles, **kwargs):
         # write to HTML:
         with open(output_file, 'w+') as t:
             t.write(output)
+
+
+#
+# Perform aggregation and return list of tables to render
+#
+def perform_aggregation(df, freq):
+    log.info("Generating summary tables")
+
+    # Limit to values during working hours:
+    df = ag.limit_by_hours(df)
+
+    # Perform multi-column aggregation and
+    #  extract interesting stats from the aggregate table
+    stats = ag.extract_stats(ag.aggregate(df, freq=freq))
+
+    # Iterate each month and tabulate each stats set
+    table_list = [ag.tabulate(stats[month]) for month in list(stats.keys())]
+
+    return zip(list(stats.keys()), table_list)
 
 
 #
@@ -207,11 +233,18 @@ def read_map(map_filename):
 #
 # Render template to html and return a string
 #
-def render_template(weeks, **kwargs):
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=template_dir))
-    return env.get_template('output.htm').render(
+def render_template(periods, **kwargs):
+    environment = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=template_dir))
+
+    def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
+        return value.strftime(format)
+
+    # register it on the template environment by updating the filters dict:
+    environment.filters['datetimeformat'] = datetimeformat
+
+    return environment.get_template('output.htm').render(
         **kwargs,
-        period=(weeks[0][0].date().strftime('%d %b'), weeks[-1:][0][0].date().strftime('%d %b'))
+        period=(periods[0][0].date().strftime('%d %b'), periods[-1:][0][0].date().strftime('%d %b'))
     )
 
 
