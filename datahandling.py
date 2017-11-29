@@ -25,7 +25,7 @@ if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
 #     * a Pandas DataFrame with corrections applied
 #   * start and end date/time values for the period
 #
-def read_data(input_datafiles):
+def read_data(input_datafiles, exclude_subnet=None, exclude_sensors=None):
     pd.set_option('chained_assignment', None)  # Hush up, SettingWithCopyWarning
 
     start_time = time.time()
@@ -48,14 +48,30 @@ def read_data(input_datafiles):
     log.info("+ Data read in {0:.2f}s".format(time.time() - start_time))
 
     start_time = time.time()
+    log.info("+ Applying data fixes")
+
     # Extract sensor IDs / names and split into dict by sensor ID
     t_start, t_end = (df.index.min(), df.index.max())
-    # names = dh.unique_sensors(df)
+
+    # Fix names (decode from unicode and ensure same case before splitting / dropping)
+    fix_names(df)
+
+    # Drop a subset of sensors from the dataframe?
+    if exclude_sensors is not None:
+        drop_sensors(df, exclude_sensors)
+
+    # Exclude subnet from sensor IDs?
+    if exclude_subnet is not None:
+        drop_subnet(df, exclude_subnet)
+
+    # Split into multiple dataframes by id
     dfs = split_by_id(df)
 
     # Apply fixes to the data and diff the PIR movement
-    log.info("Applying data fixes:")
     dfs = clean_data(dfs)
+
+    # Overwrite `df` as dfs contains all the fixes
+    df = pd.concat(dfs.values())
 
     log.info("+ Data fixes applied in {0:.2f}s".format(time.time() - start_time))
 
@@ -70,7 +86,7 @@ def readfile(filename):
 
     # Guess which method to use based on file mimetype
     mtype, _ = mimetypes.guess_type(filename)
-    log.info("Detected MIME: {0}".format(mtype))
+    log.debug("Detected MIME: {0}".format(mtype))
 
     # Plaintext BAX file
     try:
@@ -88,7 +104,7 @@ def readfile(filename):
 #
 def df_from_bin(filename, decryption_keys=None):
 
-    log.info("Decoding data file from binary")
+    log.debug("Decoding data file from binary")
     proc = subprocess.Popen([
         os.path.join(TOOLS_DIR, "BAXTest"),
         "-Sf",                                           # Source:        file
@@ -191,12 +207,18 @@ def threshold_sensors(dfs, threshold=1):
 #
 # Split a dataframe by the sensor ID and return a mapping
 #
-def split_by_id(df, name_column='Name'):
-    # Make sure all the names are the same case for comparison!
-    df.loc[:, name_column] = df[name_column].apply(lambda name: name.upper().decode("utf-8"))
-
+def split_by_id(df, id_column='Name'):
     # Return mapping of name to (sub)dataframe
-    return {n: df.loc[df[name_column] == n, :] for n in df[name_column].unique()}
+    return {n: df.loc[df[id_column] == n, :] for n in df[id_column].unique()}
+
+
+#
+# Fix dataframe 'Name' labels to ensure all are the same case and datatype
+#
+def fix_names(df, name_column='Name'):
+    # Make sure all the names are the same case for comparison!
+    # By using .loc we ensure this happens in-place (not on a copy)
+    df.loc[:, name_column] = df[name_column].apply(lambda name: name.upper().decode("utf-8"))
 
 
 #
@@ -329,6 +351,24 @@ def fix_light(dfs):
 
 
 #
+# Drop the subnet from sensor addresses in a DataFrame
+# (ensure fix_names has been called on the data first!)
+#
+def drop_subnet(df: pd.DataFrame, subnet: str):
+    log.debug("Dropping subnet {} from sensor IDs".format(subnet))
+    df.replace({"Name": {"^({0})".format(subnet): ""}}, regex=True, inplace=True)
+
+
+#
+# Drop the list of sensor IDs provided from the dataframe
+# (ensure fix_names has been called on the data first!)
+#
+def drop_sensors(df: pd.DataFrame, sensor_list: list):
+    log.debug("Dropping sensors: {}".format(", ".join(sensor_list)))
+    df.drop(df[df['Name'].isin(sensor_list)].index, inplace=True)
+
+
+#
 # Clean data: apply fixes and scrub erroneous values
 #
 def clean_data(dfs):
@@ -360,11 +400,8 @@ def clean_data(dfs):
 #
 def test(datafile):
     # Read file
-    df = readfile(datafile)
+    df, dfs, t_start, t_end = read_data([datafile], exclude_subnet="42")
     names = unique_sensors(df)
-    dfs = split_by_id(df)
-    dfs = fix_humidity(dfs)
-    dfs = diff_pir(dfs)
 
     log.info(dfs[names[0]].dtypes.index)
     log.info(names)

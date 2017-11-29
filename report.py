@@ -36,11 +36,13 @@ def report(input_datafiles, **kwargs):
     series = kwargs.pop('series', None)
     names = kwargs.pop('names', None)
     plot_months = kwargs.pop('months', None)
+    drop_subnet = kwargs.pop('drop_subnet', None)
+    drop_sensors = kwargs.pop('drop_sensors', None)
 
 #    log.debug("File list: " + '\n'.join(input_datafiles))
 
     # Perform data read-in using the datahandling module and apply corrections
-    df, dfs, t_start, t_end = dh.read_data(input_datafiles)
+    df, dfs, t_start, t_end = dh.read_data(input_datafiles, exclude_subnet=drop_subnet, exclude_sensors=drop_sensors)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
 
     if names:
@@ -229,8 +231,10 @@ if __name__ == "__main__":
     parser.add_argument("--location",    "-l", dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
     parser.add_argument("--description", "-d", dest="description",  action="store", type=str, help="Verbose description to add to report")
     parser.add_argument("--names",       "-n", dest="names",        action="store", type=str, help="File containing sensor name mappings")
+    parser.add_argument("--drop_subnet", "-b", dest="drop_subnet",  action="store", type=str, help="Exclude subnet from sensor names")
     parser.add_argument("--threshold",   "-t", dest="threshold",    action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
     parser.add_argument("--months",      "-a", dest="months",       action="store_true",      help="Plot months instead of weeks")
+    parser.add_argument("--drop_sensors","-z", nargs='+', type=str, action="store", help="List of sensors to exclude from report")
     parser.add_argument("--series",      "-s", nargs='+', type=str, default=['temperature', 'humidity', 'light'])
 
     group = parser.add_mutually_exclusive_group()
