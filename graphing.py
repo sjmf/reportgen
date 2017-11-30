@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # coding: utf-8
-import mpl_toolkits.axisartist
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import base64
@@ -16,6 +13,11 @@ from pandas.tseries.offsets import MonthEnd, MonthBegin, Week
 from datetime import datetime, timedelta
 from io import BytesIO
 from os import makedirs
+
+import matplotlib as mpl
+# mpl.use('agg')  # Must do this before pyplot import
+import matplotlib.pyplot as plt
+import mpl_toolkits.axisartist
 
 log = logging.getLogger(__name__)
 
