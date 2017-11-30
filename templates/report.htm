@@ -1,10 +1,10 @@
 <!-- report template -->
-{% for series in to_plot %}
+{% for series in to_render %}
 <!-- series -->
 <div class="cover">
     <h1> {{ series[0].label.split(' ')[0] }} Report{% if location is not none %}: {{ location }} {% endif %}</h1>
     <h2> {% if not plot_months %}Weeks beginning{% endif %}
-            {{ period[0] }} to {{ period[1] }} </h2>
+            {{ t_start | datetimeformat('%d %b %Y') }} to {{ t_end | datetimeformat('%d %b %Y') }} </h2>
 {% if map is not none %}
     <img src="data:{{map.mime}};charset=utf-8;base64,{{ map.b64 }}" />
 {% endif %}
@@ -26,4 +26,4 @@
 </figure>
 {% endfor %} {# END for period in series #}
 
-{% endfor %} {# END for series in to_plot #}
+{% endfor %} {# END for series in to_render #}
