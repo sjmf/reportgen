@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import time
 import base64
 import jinja2
 import logging
@@ -28,8 +29,9 @@ def report(input_datafiles, **kwargs):
 
     # Parse arguments
     output_pdf = bool(kwargs.pop('pdf', True)) and not bool(kwargs.pop('htm', False))
+    default_filename = '~/reportgen_output.{}'.format("pdf" if output_pdf else 'htm')
 
-    output_file = kwargs.pop('output_file', 'out.pdf')
+    dest_file = os.path.expanduser(kwargs.pop('output_file', default_filename))
     map_filename = kwargs.pop('map_filename', None)
     description = kwargs.pop('description', None)
     location = kwargs.pop('location', None)
@@ -40,12 +42,13 @@ def report(input_datafiles, **kwargs):
     drop_subnet = kwargs.pop('drop_subnet', None)
     drop_sensors = kwargs.pop('drop_sensors', None)
 
-#    log.debug("File list: " + '\n'.join(input_datafiles))
-
-    # Perform data read-in using the datahandling module and apply corrections
+    #
+    # Perform data read-in using the datahandling module (which applies the necessary corrections)
     df, dfs, t_start, t_end = dh.read_data(input_datafiles, exclude_subnet=drop_subnet, exclude_sensors=drop_sensors)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
+    # log.debug("File list: " + '\n'.join(input_datafiles))
 
+    # Custom sensor naming?
     if names:
         name_map = dh.read_sensor_names(names)      # Read in names
         dfs = dh.apply_sensor_names(dfs, name_map)  # Apply names
@@ -63,49 +66,23 @@ def report(input_datafiles, **kwargs):
     # Generate graphs using matplotlib for the following types:
     periods = get_month_range(df) if plot_months else get_week_range(df)
 
-    # Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
-    types = [("Temp", "Temperature ˚C"), ("Humidity", "Humidity %RH"),
-             ("Light", "Light (lux)"), ("PIRDiff", "Movement (PIR counts per minute)"),
-             ("RSSI", "RX Signal (dBm)"), ("Battery", "Battery level (mV)")]
-
     if series:
-        s_list = ['temperature', 'humidity', 'light', 'movement', 'rssi', 'battery']
-        types = [types[i] for i, t in enumerate(s_list) if t in series]
+        s_list = ['Temp', 'Humidity', 'Light', 'Movement', 'RSSI', 'Battery']
+        types = [(t, dh.TYPE_LABELS[t]) for t in s_list if t.lower() in [s.lower() for s in series]]
 
     log.debug(types)
     log.info("Generating graphs for period {0} to {1}".format(periods[0][0], periods[-1:][0][0]))
 
-    # TODO: Replace this call with a multiprocessing threadpool + map?
-    # Single-threaded: 46.72s
-    # *typestring: (series, y_label) from types array
-    # *period: (t_start, t_end)
-    figs = [[
-            monthly_graph(dfs, *typestring, *p) if plot_months else
-            weekly_graph(dfs, *typestring, *p, legend_cols=1 if names else 3)
-            for p in periods
-        ] for typestring in types]
+    start_time = time.time()
 
-# e.g. ('Light',
-#       'Light (lux)',
-#       Timestamp('2014-12-29 00:00:00', offset='W-MON'),
-#       Timestamp('2015-01-04 00:00:00', offset='W-MON')),
+    figs = plot_figures_single_threaded(dfs, periods, types, plot_months, legend_cols=1 if names else 3)
 
-#    from functools import partial
-#    series = sum([[( dfs, *typestring, *period ) for period in weeks] for typestring in types ],[])
-#    start_time = time.time()
+    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
 
-# Plotting graphs this way gives an error:
-# The process has forked and you cannot use this CoreFoundation functionality safely. You MUST exec().
-# Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
-
-#    p = multiprocessing.Pool()
-#    figs = p.map(plot_weekly, series)
-#    log.info("+ Graphs generated in {0:.2f}s".format(time.time() - start_time))
-
-    # Format graphs and metadata into a data structure for the jinja2 templater
+    # Format graphs and metadata into a data structure for the jinja2 templater:
     # Generates a structure of the form: to_plot[week][series][data]
     # e.g. to_plot[0][0]['label'] == 'Temperature ˚C'
-    to_plot = [
+    to_render = [
         [
             {
                 'type':     t,
@@ -126,9 +103,12 @@ def report(input_datafiles, **kwargs):
         loc_map = read_map(map_filename)
         log.debug('map type is ' + str(loc_map[1]))
 
+    # Render the jinja template
     output = render_template(
         periods=periods,
-        to_plot=to_plot,
+        t_start=periods[0][0].date(),
+        t_end=periods[-1:][0][1].date(),
+        to_render=to_render,
         location=location,
         description=description,
         plot_months=plot_months,
@@ -137,20 +117,90 @@ def report(input_datafiles, **kwargs):
         map=dict(zip(['b64', 'mime'], loc_map)) if map_filename is not None and loc_map[1] is not None else None
     )
 
+    # Debug log first 150 chars of html:
     log.debug(output[:150].replace('\n', ' '))
 
-    log.info("Writing to {1} file {0}".format(output_file, ('PDF' if output_pdf else 'HTM')))
+    try:
+        write_file(dest_file, output, output_pdf)
+
+    except FileNotFoundError as e:
+        log.error(e)
+        log.info("Retrying with default filename 'reportgen_output' in home directory")
+
+        write_file(default_filename, output, output_pdf)
+
+
+#
+# Plot figures multi-threaded and return as a nested list data structure
+#
+# This still appears to be bugged and can run slower than single-threaded...
+# Current hypothesis is that the dataframe is being copied in memory, so for large data sets this kills performance :(
+#
+# Plotting graphs this way gives an error if the matplotlib backend is 'macosx':
+#   Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
+#
+# ...or on newer OSX:
+#  +[NSView initialize] may have been in progress in another thread when fork() was called. We cannot safely call it or
+#   ignore it in the fork() child process. Crashing instead. Set a breakpoint on objc_initializeAfterForkError to debug.
+#
+def plot_figures_multi_threaded(dfs, periods, types, plot_months=False, **kwargs):
+
+    import multiprocessing
+
+    log.info("Rendering using multiprocessing")
+
+    # Generate arguments:
+    series_args = [
+        (dfs, *typestring, *p)
+        for p in periods
+        for typestring in types]
+
+    # [print(s[1:]) for s in series_args]
+
+    # Plot in multiple processes
+    p = multiprocessing.Pool(processes=12)
+    plot_function = monthly_graph if plot_months else weekly_graph
+    figs = p.starmap(plot_function, series_args)
+
+    return [figs]
+
+
+#
+# Plot figures single-threaded and return as a nested list data structure
+# Single-threaded: 46.72s
+#
+def plot_figures_single_threaded(dfs, periods, types, plot_months=False, legend_cols=3):
+
+    log.info("Rendering on single thread")
+
+    # Arguments are expanded to match function signature:
+    # *typestring: (series, y_label) from types array
+    # *period: (t_start, t_end)
+    return [[
+        monthly_graph(dfs, *typestring, *p) if plot_months else
+        weekly_graph(dfs, *typestring, *p, legend_cols=legend_cols)
+        for p in periods
+    ] for typestring in types]
+
+
+#
+# Write report to file
+#
+def write_file(dest_file, output, output_pdf=True):
+
+    log.info("Writing to {1} file {0}".format(dest_file, ('PDF' if output_pdf else 'HTM')))
 
     if output_pdf:
         # write to PDF
         print_css = weasyprint.CSS(os.path.join(template_dir, "report.css"))
         # debug_css = weasyprint.CSS(os.path.join(template_dir, "debug.css"))
+
         htm = weasyprint.HTML(string=output, base_url='.')
-        htm.write_pdf(target=output_file, zoom=2, stylesheets=[print_css])  # , debug_css])
+        htm.write_pdf(target=dest_file, zoom=2, stylesheets=[print_css])  # , debug_css])
 
     else:
         # write to HTML:
-        with open(output_file, 'w+') as t:
+        with open(dest_file, 'w+') as t:
             t.write(output)
 
 
@@ -233,7 +283,7 @@ def read_map(map_filename):
 #
 # Render template to html and return a string
 #
-def render_template(periods, **kwargs):
+def render_template(**kwargs):
     environment = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=template_dir))
 
     def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
@@ -242,16 +292,13 @@ def render_template(periods, **kwargs):
     # register it on the template environment by updating the filters dict:
     environment.filters['datetimeformat'] = datetimeformat
 
-    return environment.get_template('output.htm').render(
-        **kwargs,
-        period=(periods[0][0].date().strftime('%d %b'), periods[-1:][0][0].date().strftime('%d %b'))
-    )
+    return environment.get_template('output.htm').render(**kwargs)
 
 
-# Main function: parse command line arguments
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-
+#
+# Read in command line arguments for report generation
+#
+def read_arguments():
     # Handle arguments
     parser = argparse.ArgumentParser(description='Generate a report PDF from an input BAX datafile')
 
@@ -268,7 +315,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold",   "-t", dest="threshold",    action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
     parser.add_argument("--months",      "-a", dest="months",       action="store_true",      help="Plot months instead of weeks")
     parser.add_argument("--drop_sensors","-z", nargs='+', type=str, action="store", help="List of sensors to exclude from report")
-    parser.add_argument("--series",      "-s", nargs='+', type=str, default=['temperature', 'humidity', 'light'])
+    parser.add_argument("--series",      "-s", nargs='+', type=str, default=['temp', 'humidity', 'light'])
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--pdf", action="store_true", default=True, help="Output a PDF file")
@@ -277,7 +324,16 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', dest="verbose", action="count")
 
     # Parse 'em 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+#
+# Main function: set up logging and pass in args to report() function
+#
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+
+    args = read_arguments()
 
     # Logging
     strh = logging.StreamHandler()
