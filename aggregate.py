@@ -146,7 +146,7 @@ def tabulate(stats):
         table = get_table(headers, t_data, series)              # Construct sub-table class
 
         # Tabulate the data: add column to top-level table for this series
-        TopTable.add_column(series.lower() + '_table', NestedTableCol(series, table.__class__))
+        TopTable.add_column(series.lower() + '_table', NestedTableCol(dh.TYPE_LABELS[series], table.__class__))
 
     return TopTable([items])
 

@@ -18,6 +18,17 @@ if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
     raise FileNotFoundError("BuildAX tooling missing in {}".format(TOOLS_DIR))
 
 
+# Types: a data type. (1, 2) where 1 is the pandas column in the DF and 2 is the series label
+TYPE_LABELS = {
+    'Battery': 'Battery level (mV)',
+    'Humidity': 'Humidity %RH',
+    'Light': 'Light (lux)',
+    'PIRDiff': 'Movement (PIR counts per minute)',
+    'RSSI': 'RX Signal (dBm)',
+    'Temp': 'Temperature ˚C'
+}
+
+
 #
 # Read a BuildAX datafile. Accept:
 #     * List of datafiles
@@ -25,7 +36,11 @@ if not os.path.isfile(os.path.join(TOOLS_DIR, "BAXTest")):
 #     * a Pandas DataFrame with corrections applied
 #   * start and end date/time values for the period
 #
-def read_data(input_datafiles, exclude_subnet=None, exclude_sensors=None):
+def read_data(input_datafiles: list, exclude_subnet=None, exclude_sensors=None):
+
+    if type(input_datafiles) is str:
+        raise TypeError("String passed to read_data function instead of list of strings")
+
     pd.set_option('chained_assignment', None)  # Hush up, SettingWithCopyWarning
 
     start_time = time.time()
