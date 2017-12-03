@@ -109,6 +109,7 @@ def report(input_datafiles, **kwargs):
         t_start=periods[0][0].date(),
         t_end=periods[-1:][0][1].date(),
         to_render=to_render,
+        drop_sensors=drop_sensors,
         location=location,
         description=description,
         plot_months=plot_months,
@@ -127,7 +128,7 @@ def report(input_datafiles, **kwargs):
         log.error(e)
         log.info("Retrying with default filename 'reportgen_output' in home directory")
 
-        write_file(default_filename, output, output_pdf)
+        write_file(os.path.expanduser(default_filename), output, output_pdf)
 
 
 #

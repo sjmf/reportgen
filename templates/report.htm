@@ -11,6 +11,14 @@
 {% if description is not none %}  
     <p class="description">{{ description }}</p>
 {% endif %}
+{% if drop_sensors is not none %}
+    <p class="dropped">The following sensor IDs have been manually excluded from this report:</p>
+    <ul>
+        {% for sensor in drop_sensors %}
+        <li>{{ sensor }}</li>
+        {% endfor %} {# END for sensor in drop_sensors #}
+    </ul>
+{% endif %}
 </div>
 
 {% for period in series %}
