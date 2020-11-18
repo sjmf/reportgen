@@ -36,7 +36,7 @@ TYPE_LABELS = {
 #     * a Pandas DataFrame with corrections applied
 #   * start and end date/time values for the period
 #
-def read_data(input_datafiles: list, exclude_subnet=None, exclude_sensors=None):
+def read_data(input_datafiles: list, exclude_subnet=None, exclude_sensors=None, skip_humidity=False):
 
     if type(input_datafiles) is str:
         raise TypeError("String passed to read_data function instead of list of strings")
@@ -83,7 +83,7 @@ def read_data(input_datafiles: list, exclude_subnet=None, exclude_sensors=None):
     dfs = split_by_id(df)
 
     # Apply fixes to the data and diff the PIR movement
-    dfs = clean_data(dfs)
+    dfs = clean_data(dfs, skip_humidity)
 
     # Overwrite `df` as dfs contains all the fixes
     df = pd.concat(dfs.values())
@@ -247,15 +247,15 @@ def date_range(df):
 # Apply PIR fix to DataFrame:
 # Fast PIR Differencing using Pandas array operations
 #
-def diff_pir(dfs):
-    σ = 5      # detect trigger above 5σ standard deviations
+def diff_pir(dfs, σ=5, pir_threshold=1500):
+    # detect trigger above 5σ standard deviations by default
 
     for i in dfs:
         d = dfs[i].loc[:, ['PIREnergy']]
 
         # Time deltas
         df_time = pd.DataFrame(d.index, index=d.index) \
-            .diff().fillna(0)                          \
+            .diff().fillna(pd.Timedelta(seconds=0))    \
             .div(np.timedelta64(1, 's'))               \
             .astype('int64')
 
@@ -274,13 +274,11 @@ def diff_pir(dfs):
         df_event = (df_diff > df_std).to_frame(name='Event')
 
         # Store views into original DataFrame
-        dfs[i].loc[:, 'Event'] = df_event[df_event['Event'] == True]
+        dfs[i].loc[:, 'Event'] = df_event # [df_event['Event'] == True]
         dfs[i].loc[:, 'PIRDiff'] = df_diff
         # dfs[i].loc[:,'PIRStd'] = df_std
 
     # Scrub erroneous values:
-    pir_threshold = 1500
-
     for i in dfs:
         # Pull out view into dataframe, where rows are out of threshold, then zero them by updating the
         # original with a new zero-filled data frame matching those indices
@@ -384,10 +382,9 @@ def drop_sensors(df: pd.DataFrame, sensor_list: list):
 
 
 #
-# Clean data: apply fixes and scrub erroneous values
+# Limit range to scrub out-of-bounds values
 #
-def clean_data(dfs):
-    # Limit range
+def limit_range(dfs):
     for i in dfs:
         dfs[i].loc[:, 'Temp'] = dfs[i].loc[:, 'Temp']\
             .apply(lambda d: d if (d > -500) and (d < 1000) else np.NaN)
@@ -395,17 +392,31 @@ def clean_data(dfs):
         dfs[i].loc[:, 'Humidity'] = dfs[i].loc[:, 'Humidity']\
             .apply(lambda d: d if (d > 0.0) and (d < 101.0) else np.NaN)
 
-    log.debug("Fixing light...")
-    dfs = fix_light(dfs)
+    return dfs
 
-    log.debug("Fixing humidity...")
-    dfs = fix_humidity(dfs)
 
-    log.debug("Fixing temperature (/10)...")
-    dfs = fix_temp(dfs)
+#
+# Clean data: apply fixes and scrub erroneous values
+#
+def clean_data(dfs, skip_humidity=False, skip_light=False, skip_temperature=False, skip_pir=False):
+    log.debug("Limiting range...")
+    dfs = limit_range(dfs)
 
-    log.debug("Differencing PIR...")
-    dfs = diff_pir(dfs)
+    if not skip_light:
+        log.debug("Fixing light...")
+        dfs = fix_light(dfs)
+
+    if not skip_humidity:
+        log.debug("Fixing humidity...")
+        dfs = fix_humidity(dfs)
+
+    if not skip_temperature:
+        log.debug("Fixing temperature (/10)...")
+        dfs = fix_temp(dfs)
+
+    if not skip_pir:
+        log.debug("Differencing PIR...")
+        dfs = diff_pir(dfs)
     
     return dfs
 

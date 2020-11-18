@@ -41,10 +41,11 @@ def report(input_datafiles, **kwargs):
     plot_months = kwargs.pop('months', None)
     drop_subnet = kwargs.pop('drop_subnet', None)
     drop_sensors = kwargs.pop('drop_sensors', None)
+    skip_humidity = kwargs.pop('skip_humidity', False)
 
     #
     # Perform data read-in using the datahandling module (which applies the necessary corrections)
-    df, dfs, t_start, t_end = dh.read_data(input_datafiles, exclude_subnet=drop_subnet, exclude_sensors=drop_sensors)
+    df, dfs, t_start, t_end = dh.read_data(input_datafiles, exclude_subnet=drop_subnet, exclude_sensors=drop_sensors, skip_humidity=skip_humidity)
     log.info("Data files range from {0} to {1}".format(t_start, t_end))
     # log.debug("File list: " + '\n'.join(input_datafiles))
 
@@ -243,11 +244,12 @@ def sensor_stats(dfs):
 def get_week_range(df):
     weeks = [
         (w, w + pd.DateOffset(days=6) + pd.Timedelta('23:59:59'))
-        for w in list(df.groupby(pd.TimeGrouper(freq='W-MON', closed='left', label='left')).groups)
+        for w in list(df.groupby(pd.Grouper(freq='W-MON', closed='left', label='left')).groups)
     ]
 
     # Skip weeks with no data
-    weeks = [w if sum([len(df.loc[w[0]:w[1]])]) > 0 else None for w in weeks]
+    # To slice based on a range, pass String, not pd.Timestamp!! https://github.com/pandas-dev/pandas/issues/15252
+    weeks = [w if sum([len(df.loc[str(w[0]):str(w[1])])]) > 0 else None for w in weeks]
     weeks = [k for k in weeks if k is not None]
 
     return weeks
@@ -307,16 +309,17 @@ def read_arguments():
     parser.add_argument("input_datafiles", nargs='+', action="store", type=str, help="Input file path list (CSV or BIN BAX data)")
 
     # Optional args
-    parser.add_argument("--outfile",     "-o", dest="output_file",  action="store", type=str, default='out.pdf', help="Output file path (report)")
-    parser.add_argument("--map",         "-m", dest="map_filename", action="store", type=str, help="Image file path")
-    parser.add_argument("--location",    "-l", dest="location",     action="store", type=str, help="Location name string, e.g. 'Open Lab'")
-    parser.add_argument("--description", "-d", dest="description",  action="store", type=str, help="Verbose description to add to report")
-    parser.add_argument("--names",       "-n", dest="names",        action="store", type=str, help="File containing sensor name mappings")
-    parser.add_argument("--drop_subnet", "-b", dest="drop_subnet",  action="store", type=str, help="Exclude subnet from sensor names")
-    parser.add_argument("--threshold",   "-t", dest="threshold",    action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
-    parser.add_argument("--months",      "-a", dest="months",       action="store_true",      help="Plot months instead of weeks")
-    parser.add_argument("--drop_sensors","-z", nargs='+', type=str, action="store", help="List of sensors to exclude from report")
-    parser.add_argument("--series",      "-s", nargs='+', type=str, default=['temp', 'humidity', 'light'])
+    parser.add_argument("--outfile",      "-o", dest="output_file",   action="store", type=str, default='out.pdf', help="Output file path (report)")
+    parser.add_argument("--map",          "-m", dest="map_filename",  action="store", type=str, help="Image file path")
+    parser.add_argument("--location",     "-l", dest="location",      action="store", type=str, help="Location name string, e.g. 'Open Lab'")
+    parser.add_argument("--description",  "-d", dest="description",   action="store", type=str, help="Verbose description to add to report")
+    parser.add_argument("--names",        "-n", dest="names",         action="store", type=str, help="File containing sensor name mappings")
+    parser.add_argument("--drop_subnet",  "-b", dest="drop_subnet",   action="store", type=str, help="Exclude subnet from sensor names")
+    parser.add_argument("--threshold",    "-t", dest="threshold",     action="store", type=int, default=1, help="Discard sensors with fewer packets than threshold")
+    parser.add_argument("--months",       "-a", dest="months",        action="store_true",      help="Plot months instead of weeks")
+    parser.add_argument("--drop_sensors", "-z", nargs='+', type=str,  action="store", help="Space-separated list of sensors to exclude from report: 42AABBCC 42DDEEFF etc")
+    parser.add_argument("--series",       "-s", nargs='+', type=str,  default=['temp', 'humidity', 'light'])
+    parser.add_argument("--skip_humidity","-w", dest="skip_humidity", action="store_true", help="Skip humidity fixes (which can take a long time)")
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--pdf", action="store_true", default=True, help="Output a PDF file")

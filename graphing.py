@@ -92,10 +92,10 @@ def get_yaxis_range(dfs, series, t_end, freq='M', pad_pc=10):
         try:
             mini = dfs[frame].groupby(pd.Grouper(freq=freq))[series].agg(['min']).rename(columns={'min': series})
             log.debug("indices: {}".format(mini.index))
-            mini = mini.loc[t_end.date()][series]
+            mini = mini.loc[str(t_end.date())][series]
 
             maxi = dfs[frame].groupby(pd.Grouper(freq=freq))[series].agg(['max']).rename(columns={'max': series})
-            maxi = maxi.loc[t_end.date()][series]
+            maxi = maxi.loc[str(t_end.date())][series]
 
             rng.append((mini, maxi))
 
@@ -287,7 +287,7 @@ def weekly_graph(dfs: dict,
         axarr = [[ax] for ax in axarr]
 
     # Commented out as without sharey=True different ticks are sometimes generated
-    # plt.gca().yaxis.set_major_locator(MaxNLocator(prune='both'))
+    #plt.gca().yaxis.set_major_locator(mpl.ticker.MaxNLocator(prune='both'))
 
     # Start plotting at cell 1 (cell zero is legend)
     i = 1
@@ -322,6 +322,10 @@ def weekly_graph(dfs: dict,
                              start.date().strftime('%d %b')),
             loc='left', x=0.05, y=0.80)
 
+        # Define the date format for ticks
+        date_form = mpl.dates.DateFormatter("%H:%M")
+        ax.xaxis.set_major_formatter(date_form)
+
         if grid:
             ax.grid(True, which="both", alpha=0.25)
 
@@ -353,13 +357,17 @@ def weekly_graph(dfs: dict,
 
         for col in range(0, cols):
             axarr[row][col].tick_params(
-                axis='both',  # changes apply to both axis
+                axis='both',   # changes apply to both axis
                 which='both',  # both major and minor ticks are affected
-                bottom='off',  # ticks along the bottom edge are off
-                top='off',  # ticks along the top edge are off
-                left='off',
-                right='off',
-                labelbottom='on')  # labels along the bottom edge are on
+                bottom=False,  # ticks along the bottom edge are off
+                top=False,     # ticks along the top edge are off
+                left=False,
+                right=False,
+                labelbottom=False)
+
+            # Switch on labels along the bottom edge for final row
+            if row == 3:
+                axarr[row][col].tick_params(labelbottom=True)
 
     # Get the handles and labels for a legend
     handles = axarr[0][1 if cols > 1 else 0].lines
@@ -490,8 +498,8 @@ def monthly_graph(dfs: dict,
             ax.spines[sp].set_alpha(spline_alpha)
 
         # Set text/label alpha
-        [l.set_alpha(txt_alpha) for l in ax.xaxis.get_ticklabels()]
-        [l.set_alpha(txt_alpha) for l in ax.yaxis.get_ticklabels()]
+        [label.set_alpha(txt_alpha) for label in ax.xaxis.get_ticklabels()]
+        [label.set_alpha(txt_alpha) for label in ax.yaxis.get_ticklabels()]
 
         # Operations on the final (bottom) x axis row
         if row == rows - 1:
@@ -515,13 +523,13 @@ def monthly_graph(dfs: dict,
 
         # Fine-tune ticks
         ax.tick_params(
-            axis='both',  # changes apply to both axis
+            axis='both',   # changes apply to both axis
             which='both',  # both major and minor ticks are affected
-            bottom='off',  # ticks along the bottom edge are off
-            top='off',  # ticks along the top edge are off
-            left='off',
-            right='off',
-            labelbottom='on')  # labels along the bottom edge are on
+            bottom=False,  # ticks along the bottom edge are off
+            top=False,     # ticks along the top edge are off
+            left=False,
+            right=False,
+            labelbottom=True)  # labels along the bottom edge are on
 
         i += 1
 
