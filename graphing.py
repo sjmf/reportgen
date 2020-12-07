@@ -342,12 +342,22 @@ def weekly_graph(dfs: dict,
         [l.set_alpha(txt_alpha) for l in ax.xaxis.get_ticklabels()]
         [l.set_alpha(txt_alpha) for l in ax.yaxis.get_ticklabels()]
 
+        # Set first tick label on y axis invisible, except on last row:
+        if row < 3 and cols > 1:
+            ax.yaxis.get_major_ticks()[0].set_visible(False)
+
         i += 1
 
     # Set spines for legend cell
     for sp in spines.keys():
         axarr[0][0].spines[sp].set_visible(spines[sp])
         axarr[0][0].spines[sp].set_alpha(spline_alpha)
+
+    # Set legend cell y axis and props equal to cell 1
+    if cols > 1:
+        axarr[0][0].set_ylim(rng[0], rng[1])
+        [l.set_alpha(txt_alpha) for l in axarr[0][0].yaxis.get_ticklabels()]
+        axarr[0][0].yaxis.get_major_ticks()[0].set_visible(False)
 
     # Fine-tune figure
     # Set labels on left column plots y-axis

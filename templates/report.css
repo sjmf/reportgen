@@ -23,6 +23,9 @@
     #aggregates table, dl {
         font-size: 8px;
     }
+    #content {
+        page-break-after: always;
+    }
 }
 
 html { font-family: sans; }
